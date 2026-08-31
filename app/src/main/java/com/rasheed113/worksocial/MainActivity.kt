@@ -11,6 +11,7 @@ import com.rasheed113.worksocial.presentation.auth.AuthViewModelFactory
 import com.rasheed113.worksocial.presentation.ui.WorkSocialApp
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
+import io.github.jan.supabase.postgrest.postgrest
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
