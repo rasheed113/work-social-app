@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,9 +39,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rasheed113.worksocial.domain.account.AccountRepository
 import com.rasheed113.worksocial.domain.account.AccountState
 import com.rasheed113.worksocial.domain.auth.AuthState
-import com.rasheed113.worksocial.domain.account.AccountRepository
 import com.rasheed113.worksocial.presentation.account.AccountViewModel
 import com.rasheed113.worksocial.presentation.account.AccountViewModelFactory
 import com.rasheed113.worksocial.presentation.auth.AuthUiState
@@ -124,12 +125,8 @@ private fun AuthScreen(state: AuthUiState, viewModel: AuthViewModel) {
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
                 enabled = !state.busy,
             )
-            state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-            state.notice?.let {
-                Text(it, color = MaterialTheme.colorScheme.primary)
-            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.notice?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.busy && email.isNotBlank() && password.isNotBlank() && (!signUp || displayName.isNotBlank()),
@@ -149,11 +146,7 @@ private fun AuthScreen(state: AuthUiState, viewModel: AuthViewModel) {
 }
 
 @Composable
-private fun AuthenticatedShell(
-    userId: String,
-    viewModel: AuthViewModel,
-    accountRepository: AccountRepository,
-) {
+private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository) {
     val navController = rememberNavController()
     val accountViewModel: AccountViewModel = viewModel(
         key = "account-$userId",
@@ -187,18 +180,10 @@ private fun AuthenticatedShell(
                 modifier = Modifier.weight(1f),
             ) {
                 composable(AppDestination.Social.route) {
-                    AuthenticatedSection(
-                        title = "Social",
-                        accountState = accountState,
-                        onRetry = { accountViewModel.retry(userId) },
-                    )
+                    AuthenticatedSection("Social", accountState) { accountViewModel.retry(userId) }
                 }
                 composable(AppDestination.WorkHouse.route) {
-                    AuthenticatedSection(
-                        title = "Work House",
-                        accountState = accountState,
-                        onRetry = { accountViewModel.retry(userId) },
-                    )
+                    AuthenticatedSection("Work House", accountState) { accountViewModel.retry(userId) }
                 }
             }
             HorizontalDivider()
@@ -213,11 +198,7 @@ private fun AuthenticatedShell(
 }
 
 @Composable
-private fun AuthenticatedSection(
-    title: String,
-    accountState: AccountState,
-    onRetry: () -> Unit,
-) {
+private fun AuthenticatedSection(title: String, accountState: AccountState, onRetry: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -234,10 +215,7 @@ private fun AuthenticatedSection(
                 Text("User ID: ${accountState.profile.id}")
                 accountState.profile.location?.takeIf { it.isNotBlank() }?.let { Text("Location: $it") }
                 accountState.profile.bio?.takeIf { it.isNotBlank() }?.let { Text(it) }
-                Text(
-                    "Real account data loaded from the Work Social profiles table.",
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Text("Real account data loaded from the Work Social profiles table.", color = MaterialTheme.colorScheme.primary)
             }
             AccountState.Empty -> {
                 Text("Your authenticated account profile was not found.")
@@ -253,7 +231,7 @@ private fun AuthenticatedSection(
     }
 }
 
-@androidx.compose.material3.ExperimentalMaterial3Api
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppTopBar(title: String) {
     TopAppBar(title = { Text(title) })
