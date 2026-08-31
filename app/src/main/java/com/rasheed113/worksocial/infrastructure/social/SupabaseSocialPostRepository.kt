@@ -1,5 +1,6 @@
 package com.rasheed113.worksocial.infrastructure.social
 
+import com.rasheed113.worksocial.domain.social.CreatePostResult
 import com.rasheed113.worksocial.domain.social.SocialPost
 import com.rasheed113.worksocial.domain.social.SocialPostAuthor
 import com.rasheed113.worksocial.domain.social.SocialPostMedia
@@ -41,6 +42,23 @@ internal data class PostAttachmentDto(
     val mime_type: String? = null,
     val file_size: Long? = null,
 )
+
+@Serializable
+internal data class CreatePostPayload(
+    val profile_id: String,
+    val content: String,
+)
+
+@Serializable
+private data class CreatedPostDto(
+    val id: String,
+)
+
+internal fun createPostPayload(authenticatedUserId: String, content: String): CreatePostPayload =
+    CreatePostPayload(
+        profile_id = authenticatedUserId,
+        content = content.trim(),
+    )
 
 internal object SocialPostMapper {
     fun map(post: PostDto, attachments: List<PostAttachmentDto>, publicUrl: (String) -> String): SocialPost {
@@ -85,9 +103,7 @@ class SupabaseSocialPostRepository(
     }
 
     override suspend fun getHomePosts(): List<SocialPost> {
-        check(auth.currentSessionOrNull() != null) {
-            "Your Work Social session is no longer active. Please sign in again."
-        }
+        requireActiveSession()
 
         val posts = postgrest.from("posts").select(
             columns = Columns.raw(
@@ -125,6 +141,33 @@ class SupabaseSocialPostRepository(
 
         return posts.map { post ->
             SocialPostMapper.map(post, attachmentsByPost[post.id].orEmpty(), publicUrl)
+        }
+    }
+
+    override suspend fun createPost(content: String): CreatePostResult {
+        val userId = auth.currentSessionOrNull()?.user?.id
+            ?: return CreatePostResult.Failure("Your Work Social session is no longer active. Please sign in again.")
+        val payload = createPostPayload(userId, content)
+        if (payload.content.isEmpty()) {
+            return CreatePostResult.Failure("Post cannot be empty.")
+        }
+
+        return runCatching {
+            val created = postgrest.from("posts").insert(payload) {
+                select(columns = Columns.list("id"))
+            }.decodeSingle<CreatedPostDto>()
+            CreatePostResult.Created(created.id)
+        }.getOrElse { error ->
+            CreatePostResult.Failure(
+                error.message?.takeIf(String::isNotBlank)
+                    ?: "Unable to create your post right now.",
+            )
+        }
+    }
+
+    private fun requireActiveSession() {
+        check(auth.currentSessionOrNull() != null) {
+            "Your Work Social session is no longer active. Please sign in again."
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.rasheed113.worksocial
 
+import com.rasheed113.worksocial.domain.social.CreatePostResult
 import com.rasheed113.worksocial.domain.social.SocialHomeState
 import com.rasheed113.worksocial.domain.social.SocialPost
 import com.rasheed113.worksocial.domain.social.SocialPostAuthor
@@ -105,6 +106,8 @@ class SocialHomeTest {
         val gate = CompletableDeferred<List<SocialPost>>()
         val viewModel = SocialHomeViewModel(object : SocialPostRepository {
             override suspend fun getHomePosts(): List<SocialPost> = gate.await()
+            override suspend fun createPost(content: String): CreatePostResult =
+                CreatePostResult.Failure("not used by this test")
         })
 
         viewModel.load()
@@ -127,5 +130,7 @@ class SocialHomeTest {
 
     private class FakeRepository(private val result: Result<List<SocialPost>>) : SocialPostRepository {
         override suspend fun getHomePosts(): List<SocialPost> = result.getOrThrow()
+        override suspend fun createPost(content: String): CreatePostResult =
+            CreatePostResult.Failure("not used by this test")
     }
 }

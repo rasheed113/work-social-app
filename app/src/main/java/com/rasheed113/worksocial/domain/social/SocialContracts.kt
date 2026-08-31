@@ -35,8 +35,14 @@ data class SocialPost(
     val media: List<SocialPostMedia> = emptyList(),
 )
 
+sealed interface CreatePostResult {
+    data class Created(val postId: String) : CreatePostResult
+    data class Failure(val message: String) : CreatePostResult
+}
+
 interface SocialPostRepository {
     suspend fun getHomePosts(): List<SocialPost>
+    suspend fun createPost(content: String): CreatePostResult
 }
 
 sealed interface SocialHomeState {

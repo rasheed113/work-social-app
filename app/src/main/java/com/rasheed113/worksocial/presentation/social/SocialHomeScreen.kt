@@ -29,12 +29,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -51,12 +51,16 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun SocialHomeScreen(repository: com.rasheed113.worksocial.domain.social.SocialPostRepository) {
+fun SocialHomeScreen(
+    repository: com.rasheed113.worksocial.domain.social.SocialPostRepository,
+    refreshToken: Int = 0,
+    onCreatePost: () -> Unit = {},
+) {
     val homeViewModel: SocialHomeViewModel = viewModel(factory = SocialHomeViewModelFactory(repository))
     val state by homeViewModel.state.collectAsStateWithLifecycle()
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        homeViewModel.load()
+    LaunchedEffect(refreshToken) {
+        if (refreshToken == 0) homeViewModel.load() else homeViewModel.refresh()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -68,6 +72,7 @@ fun SocialHomeScreen(repository: com.rasheed113.worksocial.domain.social.SocialP
                 Text("Home", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Your Social feed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            TextButton(onClick = onCreatePost) { Text("Create") }
             TextButton(onClick = homeViewModel::refresh) { Text("Refresh") }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))

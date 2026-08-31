@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +48,7 @@ import com.rasheed113.worksocial.presentation.account.AccountViewModelFactory
 import com.rasheed113.worksocial.presentation.auth.AuthUiState
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.navigation.AppDestination
+import com.rasheed113.worksocial.presentation.social.CreatePostScreen
 import com.rasheed113.worksocial.presentation.social.SocialHomeScreen
 
 @Composable
@@ -158,6 +160,7 @@ private fun AuthenticatedShell(
     socialPostRepository: SocialPostRepository,
 ) {
     val navController = rememberNavController()
+    var socialRefreshToken by remember { mutableIntStateOf(0) }
     val accountViewModel: AccountViewModel = viewModel(
         key = "account-$userId",
         factory = AccountViewModelFactory(accountRepository),
@@ -166,19 +169,23 @@ private fun AuthenticatedShell(
     LaunchedEffect(userId) { accountViewModel.load(userId) }
 
     val destinations = listOf(AppDestination.Social, AppDestination.WorkHouse)
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val isCreatePost = currentRoute == AppDestination.CreatePost.route
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = { AppTopBar("Work Social") },
+        topBar = { if (!isCreatePost) AppTopBar("Work Social") },
         bottomBar = {
-            NavigationBar {
-                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-                destinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = { navController.navigate(destination.route) { launchSingleTop = true } },
-                        icon = {},
-                        label = { Text(destination.label) },
-                    )
+            if (!isCreatePost) {
+                NavigationBar {
+                    destinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = { navController.navigate(destination.route) { launchSingleTop = true } },
+                            icon = {},
+                            label = { Text(destination.label) },
+                        )
+                    }
                 }
             }
         },
@@ -190,18 +197,31 @@ private fun AuthenticatedShell(
                 modifier = Modifier.weight(1f),
             ) {
                 composable(AppDestination.Social.route) {
-                    SocialHomeScreen(socialPostRepository)
+                    SocialHomeScreen(
+                        repository = socialPostRepository,
+                        refreshToken = socialRefreshToken,
+                        onCreatePost = { navController.navigate(AppDestination.CreatePost.route) },
+                    )
+                }
+                composable(AppDestination.CreatePost.route) {
+                    CreatePostScreen(
+                        repository = socialPostRepository,
+                        onCreated = { socialRefreshToken += 1 },
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable(AppDestination.WorkHouse.route) {
                     AuthenticatedSection("Work House", accountState) { accountViewModel.retry(userId) }
                 }
             }
-            HorizontalDivider()
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = viewModel::signOut) { Text("Sign out") }
+            if (!isCreatePost) {
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = viewModel::signOut) { Text("Sign out") }
+                }
             }
         }
     }
