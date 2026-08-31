@@ -1,5 +1,6 @@
 package com.rasheed113.worksocial.presentation.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,10 +36,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.rasheed113.worksocial.domain.account.AccountRepository
 import com.rasheed113.worksocial.domain.account.AccountState
 import com.rasheed113.worksocial.domain.activity.ActivityRepository
@@ -57,6 +60,7 @@ import com.rasheed113.worksocial.presentation.friends.FriendsScreen
 import com.rasheed113.worksocial.presentation.friends.FriendsViewModel
 import com.rasheed113.worksocial.presentation.friends.FriendsViewModelFactory
 import com.rasheed113.worksocial.presentation.navigation.AppDestination
+import com.rasheed113.worksocial.presentation.profile.ProfileScreen
 import com.rasheed113.worksocial.presentation.social.CreatePostScreen
 import com.rasheed113.worksocial.presentation.social.SocialHomeScreen
 
@@ -116,18 +120,27 @@ private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, account
     val activityState by activityViewModel.state.collectAsStateWithLifecycle()
     val friendsViewModel: FriendsViewModel = viewModel(key = "friends-$userId", factory = FriendsViewModelFactory(friendsRepository))
     LaunchedEffect(userId) { accountViewModel.load(userId) }
-    val destinations = listOf(AppDestination.Social, AppDestination.Friends, AppDestination.Activity, AppDestination.WorkHouse)
+    val destinations = listOf(AppDestination.Social, AppDestination.Friends, AppDestination.Activity, AppDestination.Profile, AppDestination.WorkHouse)
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val isCreatePost = currentRoute == AppDestination.CreatePost.route
     val unreadCount = (activityState as? ActivityState.Success)?.unreadCount ?: 0
-    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost) AppTopBar(if (currentRoute == AppDestination.Friends.route) "Friends" else "Work Social") }, bottomBar = {
+    val topTitle = when (currentRoute) {
+        AppDestination.Friends.route -> "Friends"
+        AppDestination.Profile.route, AppDestination.PublicProfile.route -> "Profile"
+        AppDestination.WorkHouse.route -> "Work House"
+        else -> "Work Social"
+    }
+    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost) AppTopBar(topTitle) }, bottomBar = {
         if (!isCreatePost) NavigationBar {
             destinations.forEach { destination ->
-                NavigationBarItem(selected = currentRoute == destination.route, onClick = { navController.navigate(destination.route) { launchSingleTop = true } }, icon = {
+                NavigationBarItem(selected = currentRoute == destination.route, onClick = {
+                    navController.navigate(destination.route) { launchSingleTop = true }
+                }, icon = {
                     when (destination) {
                         AppDestination.Activity -> if (unreadCount > 0) BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") } else Text("♢")
                         AppDestination.Social -> Text("⌂")
                         AppDestination.Friends -> Text("♧")
+                        AppDestination.Profile, AppDestination.PublicProfile -> Text("◉")
                         AppDestination.WorkHouse -> Text("▣")
                         AppDestination.CreatePost -> Text("＋")
                     }
@@ -141,8 +154,12 @@ private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, account
                     val target = socialNotificationTarget
                     SocialHomeScreen(repository = socialPostRepository, refreshToken = socialRefreshToken, targetPostId = target?.postId, targetCommentId = target?.commentId, onTargetConsumed = { socialNotificationTarget = null }, onCreatePost = { navController.navigate(AppDestination.CreatePost.route) })
                 }
-                composable(AppDestination.Friends.route) { FriendsScreen(friendsViewModel) }
+                composable(AppDestination.Friends.route) { FriendsScreen(friendsViewModel, onOpenProfile = { profileId -> navController.navigate("profile/${Uri.encode(profileId)}") }) }
                 composable(AppDestination.Activity.route) { ActivityScreen(viewModel = activityViewModel, onOpenPost = { postId, commentId -> socialNotificationTarget = SocialNotificationTarget(postId, commentId); navController.navigate(AppDestination.Social.route) { launchSingleTop = true } }) }
+                composable(AppDestination.Profile.route) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null) }
+                composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry ->
+                    ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId"))
+                }
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
                 composable(AppDestination.WorkHouse.route) { AuthenticatedSection("Work House", accountState) { accountViewModel.retry(userId) } }
             }

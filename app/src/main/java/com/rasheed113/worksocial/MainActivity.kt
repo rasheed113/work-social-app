@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val supabase = (application as WorkSocialApplication).supabase
         supabase.handleDeeplinks(intent)
         val authRepository = SupabaseAuthRepository(supabase.auth)
-        val accountRepository = SupabaseAccountRepository(supabase.postgrest)
+        val accountRepository = SupabaseAccountRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val socialPostRepository = SupabaseSocialPostRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val activityRepository = SupabaseActivityRepository(supabase.postgrest, supabase.auth, supabase.realtime)
         val friendsRepository = SupabaseFriendsRepository(supabase.postgrest, supabase.auth)

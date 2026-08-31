@@ -48,9 +48,25 @@ internal object SocialPostMapper {
 
 class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val auth: Auth, private val storage: Storage) : SocialPostRepository {
     companion object { const val INITIAL_PAGE_SIZE = 50 }
+
     override suspend fun getHomePosts(): List<SocialPost> {
         val userId = requireActiveSession()
         val posts = postgrest.from("posts").select(columns = Columns.raw("id, profile_id, content, privacy, latitude, longitude, location_name, created_at, updated_at, profiles(username, display_name, avatar_url)")) { filter { eq("privacy", "public") }; order(column = "created_at", order = Order.DESCENDING); limit(INITIAL_PAGE_SIZE.toLong()) }.decodeList<PostDto>()
+        return hydratePosts(posts, userId)
+    }
+
+    override suspend fun getProfilePosts(profileId: String): List<SocialPost> {
+        val userId = requireActiveSession()
+        if (profileId.isBlank()) return emptyList()
+        val posts = postgrest.from("posts").select(columns = Columns.raw("id, profile_id, content, privacy, latitude, longitude, location_name, created_at, updated_at, profiles(username, display_name, avatar_url)")) {
+            filter { eq("profile_id", profileId) }
+            order(column = "created_at", order = Order.DESCENDING)
+            limit(INITIAL_PAGE_SIZE.toLong())
+        }.decodeList<PostDto>()
+        return hydratePosts(posts, userId)
+    }
+
+    private suspend fun hydratePosts(posts: List<PostDto>, userId: String): List<SocialPost> {
         if (posts.isEmpty()) return emptyList()
         val ids = posts.map(PostDto::id)
         val attachments = postgrest.from("post_attachments").select(columns = Columns.list("id, post_id, kind, storage_path, file_name, mime_type, file_size")) { filter { isIn("post_id", ids) }; order(column = "created_at", order = Order.ASCENDING) }.decodeList<PostAttachmentDto>()
@@ -59,6 +75,7 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
         val publicUrl: (String) -> String = { storage.from("post-media").publicUrl(it) }
         return applyLikeState(posts.map { SocialPostMapper.map(it, byPost[it.id].orEmpty(), publicUrl) }, reactions, userId)
     }
+
     override suspend fun createPost(content: String): CreatePostResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return CreatePostResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         val payload = createPostPayload(userId, content)

@@ -4,6 +4,8 @@ sealed class AppDestination(val route: String, val label: String) {
     data object Social : AppDestination("social", "Social")
     data object Friends : AppDestination("friends", "Friends")
     data object Activity : AppDestination("activity", "Activity")
+    data object Profile : AppDestination("profile", "Profile")
+    data object PublicProfile : AppDestination("profile/{profileId}", "Profile")
     data object CreatePost : AppDestination("social/create-post", "Create Post")
     data object WorkHouse : AppDestination("work-house", "Work House")
 }

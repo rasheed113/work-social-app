@@ -12,6 +12,15 @@ sealed interface LikeMutationResult { data class Success(val likeCount: Int, val
 sealed interface CreateCommentResult { data class Created(val commentId: String) : CreateCommentResult; data class Failure(val message: String) : CreateCommentResult }
 sealed interface DeleteCommentResult { data object Deleted : DeleteCommentResult; data class Failure(val message: String) : DeleteCommentResult }
 sealed interface CommentsResult { data class Success(val comments: List<SocialComment>) : CommentsResult; data class Failure(val message: String) : CommentsResult }
-interface SocialPostRepository { suspend fun getHomePosts(): List<SocialPost>; suspend fun createPost(content: String): CreatePostResult; suspend fun likePost(postId: String): LikeMutationResult; suspend fun unlikePost(postId: String): LikeMutationResult; suspend fun getComments(postId: String): CommentsResult = CommentsResult.Failure("Comments are not implemented by this repository."); suspend fun createComment(postId: String, content: String): CreateCommentResult = CreateCommentResult.Failure("Comments are not implemented by this repository."); suspend fun deleteComment(commentId: String): DeleteCommentResult = DeleteCommentResult.Failure("Comments are not implemented by this repository.") }
+interface SocialPostRepository {
+    suspend fun getHomePosts(): List<SocialPost>
+    suspend fun getProfilePosts(profileId: String) = emptyList<SocialPost>()
+    suspend fun createPost(content: String): CreatePostResult
+    suspend fun likePost(postId: String): LikeMutationResult
+    suspend fun unlikePost(postId: String): LikeMutationResult
+    suspend fun getComments(postId: String): CommentsResult = CommentsResult.Failure("Comments are not implemented by this repository.")
+    suspend fun createComment(postId: String, content: String): CreateCommentResult = CreateCommentResult.Failure("Comments are not implemented by this repository.")
+    suspend fun deleteComment(commentId: String): DeleteCommentResult = DeleteCommentResult.Failure("Comments are not implemented by this repository.")
+}
 sealed interface SocialHomeState { data object Loading : SocialHomeState; data class Success(val posts: List<SocialPost>, val likingPostIds: Set<String> = emptySet(), val actionError: String? = null, val comments: Map<String, CommentsState> = emptyMap(), val commentMutations: Set<String> = emptySet()) : SocialHomeState; data object Empty : SocialHomeState; data class Error(val message: String) : SocialHomeState }
 sealed interface CommentsState { data object Loading : CommentsState; data class Success(val comments: List<SocialComment>) : CommentsState; data class Error(val message: String) : CommentsState }
