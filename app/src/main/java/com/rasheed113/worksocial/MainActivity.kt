@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rasheed113.worksocial.infrastructure.account.SupabaseAccountRepository
 import com.rasheed113.worksocial.infrastructure.activity.SupabaseActivityRepository
 import com.rasheed113.worksocial.infrastructure.auth.SupabaseAuthRepository
+import com.rasheed113.worksocial.infrastructure.friends.SupabaseFriendsRepository
 import com.rasheed113.worksocial.infrastructure.social.SupabaseSocialPostRepository
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.auth.AuthViewModelFactory
@@ -26,9 +27,10 @@ class MainActivity : ComponentActivity() {
         val accountRepository = SupabaseAccountRepository(supabase.postgrest)
         val socialPostRepository = SupabaseSocialPostRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val activityRepository = SupabaseActivityRepository(supabase.postgrest, supabase.auth, supabase.realtime)
+        val friendsRepository = SupabaseFriendsRepository(supabase.postgrest, supabase.auth)
         setContent {
             val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
-            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository)
+            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository)
         }
     }
 }
