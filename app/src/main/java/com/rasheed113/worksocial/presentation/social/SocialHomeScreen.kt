@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,13 +84,32 @@ fun SocialHomeScreen(
             SocialHomeState.Empty -> EmptyContent(onRefresh = homeViewModel::refresh)
             is SocialHomeState.Error -> ErrorContent(current.message, onRetry = homeViewModel::refresh)
             is SocialHomeState.Success -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(current.posts, key = SocialPost::id) { post ->
-                        SocialPostCard(post)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    current.actionError?.let { message ->
+                        TextButton(
+                            onClick = homeViewModel::clearActionError,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                "Like action failed: $message",
+                                color = MaterialTheme.colorScheme.error,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(current.posts, key = SocialPost::id) { post ->
+                            SocialPostCard(
+                                post = post,
+                                isLikeProcessing = post.id in current.likingPostIds,
+                                onToggleLike = { homeViewModel.toggleLike(post.id) },
+                            )
+                        }
                     }
                 }
             }
@@ -134,7 +155,11 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun SocialPostCard(post: SocialPost) {
+private fun SocialPostCard(
+    post: SocialPost,
+    isLikeProcessing: Boolean,
+    onToggleLike: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -193,6 +218,33 @@ private fun SocialPostCard(post: SocialPost) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onToggleLike,
+                    enabled = !isLikeProcessing,
+                    modifier = Modifier.semantics {
+                        contentDescription = when {
+                            isLikeProcessing -> "Like in progress"
+                            post.isLikedByCurrentUser -> "Unlike post"
+                            else -> "Like post"
+                        }
+                    },
+                ) {
+                    if (isLikeProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(7.dp))
+                        Text("Updating…")
+                    } else {
+                        Text(if (post.isLikedByCurrentUser) "♥ Liked" else "♡ Like")
+                        Spacer(Modifier.width(7.dp))
+                        Text(post.likeCount.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }

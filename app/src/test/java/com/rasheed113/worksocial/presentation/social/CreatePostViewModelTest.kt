@@ -1,6 +1,7 @@
 package com.rasheed113.worksocial.presentation.social
 
 import com.rasheed113.worksocial.domain.social.CreatePostResult
+import com.rasheed113.worksocial.domain.social.LikeMutationResult
 import com.rasheed113.worksocial.domain.social.SocialPost
 import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import com.rasheed113.worksocial.infrastructure.social.createPostPayload
@@ -130,5 +131,11 @@ class CreatePostViewModelTest {
             release?.await()
             return createResult
         }
+
+        override suspend fun likePost(postId: String): LikeMutationResult =
+            LikeMutationResult.Failure("not used by this test")
+
+        override suspend fun unlikePost(postId: String): LikeMutationResult =
+            LikeMutationResult.Failure("not used by this test")
     }
 }

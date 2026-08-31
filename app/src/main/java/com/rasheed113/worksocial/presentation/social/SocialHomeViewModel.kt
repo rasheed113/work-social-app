@@ -2,6 +2,7 @@ package com.rasheed113.worksocial.presentation.social
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rasheed113.worksocial.domain.social.LikeMutationResult
 import com.rasheed113.worksocial.domain.social.SocialHomeState
 import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,59 @@ class SocialHomeViewModel(
 
     fun refresh() {
         refreshInternal()
+    }
+
+    fun toggleLike(postId: String) {
+        val current = _state.value as? SocialHomeState.Success ?: return
+        if (postId in current.likingPostIds) return
+        val post = current.posts.firstOrNull { it.id == postId } ?: return
+
+        _state.value = current.copy(
+            likingPostIds = current.likingPostIds + postId,
+            actionError = null,
+        )
+
+        viewModelScope.launch {
+            val result = if (post.isLikedByCurrentUser) {
+                repository.unlikePost(postId)
+            } else {
+                repository.likePost(postId)
+            }
+
+            when (result) {
+                is LikeMutationResult.Success -> {
+                    val latest = _state.value as? SocialHomeState.Success
+                    if (latest != null) {
+                        _state.value = latest.copy(
+                            posts = latest.posts.map { item ->
+                                if (item.id == postId) {
+                                    item.copy(
+                                        likeCount = result.likeCount,
+                                        isLikedByCurrentUser = result.isLikedByCurrentUser,
+                                    )
+                                } else item
+                            },
+                            likingPostIds = latest.likingPostIds - postId,
+                            actionError = null,
+                        )
+                    }
+                }
+                is LikeMutationResult.Failure -> {
+                    val latest = _state.value as? SocialHomeState.Success
+                    if (latest != null) {
+                        _state.value = latest.copy(
+                            likingPostIds = latest.likingPostIds - postId,
+                            actionError = result.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearActionError() {
+        val current = _state.value as? SocialHomeState.Success ?: return
+        if (current.actionError != null) _state.value = current.copy(actionError = null)
     }
 
     private fun refreshInternal() {

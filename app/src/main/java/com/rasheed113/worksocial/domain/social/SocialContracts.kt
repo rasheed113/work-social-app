@@ -33,6 +33,8 @@ data class SocialPost(
     val updated_at: String,
     val author: SocialPostAuthor,
     val media: List<SocialPostMedia> = emptyList(),
+    val likeCount: Int = 0,
+    val isLikedByCurrentUser: Boolean = false,
 )
 
 sealed interface CreatePostResult {
@@ -40,14 +42,25 @@ sealed interface CreatePostResult {
     data class Failure(val message: String) : CreatePostResult
 }
 
+sealed interface LikeMutationResult {
+    data class Success(val likeCount: Int, val isLikedByCurrentUser: Boolean) : LikeMutationResult
+    data class Failure(val message: String) : LikeMutationResult
+}
+
 interface SocialPostRepository {
     suspend fun getHomePosts(): List<SocialPost>
     suspend fun createPost(content: String): CreatePostResult
+    suspend fun likePost(postId: String): LikeMutationResult
+    suspend fun unlikePost(postId: String): LikeMutationResult
 }
 
 sealed interface SocialHomeState {
     data object Loading : SocialHomeState
-    data class Success(val posts: List<SocialPost>) : SocialHomeState
+    data class Success(
+        val posts: List<SocialPost>,
+        val likingPostIds: Set<String> = emptySet(),
+        val actionError: String? = null,
+    ) : SocialHomeState
     data object Empty : SocialHomeState
     data class Error(val message: String) : SocialHomeState
 }

@@ -1,6 +1,7 @@
 package com.rasheed113.worksocial.infrastructure.social
 
 import com.rasheed113.worksocial.domain.social.CreatePostResult
+import com.rasheed113.worksocial.domain.social.LikeMutationResult
 import com.rasheed113.worksocial.domain.social.SocialPost
 import com.rasheed113.worksocial.domain.social.SocialPostAuthor
 import com.rasheed113.worksocial.domain.social.SocialPostMedia
@@ -44,9 +45,23 @@ internal data class PostAttachmentDto(
 )
 
 @Serializable
+internal data class PostReactionDto(
+    val post_id: String,
+    val profile_id: String,
+    val reaction: String,
+)
+
+@Serializable
 internal data class CreatePostPayload(
     val profile_id: String,
     val content: String,
+)
+
+@Serializable
+private data class LikePayload(
+    val post_id: String,
+    val profile_id: String,
+    val reaction: String,
 )
 
 @Serializable
@@ -59,6 +74,27 @@ internal fun createPostPayload(authenticatedUserId: String, content: String): Cr
         profile_id = authenticatedUserId,
         content = content.trim(),
     )
+
+internal fun applyLikeState(
+    posts: List<SocialPost>,
+    reactions: List<PostReactionDto>,
+    currentUserId: String,
+): List<SocialPost> {
+    val likesByPost = reactions.asSequence()
+        .filter { it.reaction == "like" }
+        .groupingBy(PostReactionDto::post_id)
+        .eachCount()
+    val likedByCurrentUser = reactions.asSequence()
+        .filter { it.reaction == "like" && it.profile_id == currentUserId }
+        .map(PostReactionDto::post_id)
+        .toSet()
+    return posts.map { post ->
+        post.copy(
+            likeCount = likesByPost[post.id] ?: 0,
+            isLikedByCurrentUser = post.id in likedByCurrentUser,
+        )
+    }
+}
 
 internal object SocialPostMapper {
     fun map(post: PostDto, attachments: List<PostAttachmentDto>, publicUrl: (String) -> String): SocialPost {
@@ -103,8 +139,7 @@ class SupabaseSocialPostRepository(
     }
 
     override suspend fun getHomePosts(): List<SocialPost> {
-        requireActiveSession()
-
+        val userId = requireActiveSession()
         val posts = postgrest.from("posts").select(
             columns = Columns.raw(
                 """
@@ -136,12 +171,18 @@ class SupabaseSocialPostRepository(
             order(column = "created_at", order = Order.ASCENDING)
         }.decodeList<PostAttachmentDto>()
 
+        val reactions = postgrest.from("post_reactions").select(
+            columns = Columns.list("post_id, profile_id, reaction")
+        ) {
+            filter { isIn("post_id", postIds) }
+        }.decodeList<PostReactionDto>()
+
         val attachmentsByPost = attachments.groupBy(PostAttachmentDto::post_id)
         val publicUrl: (String) -> String = { path -> storage.from("post-media").publicUrl(path) }
-
-        return posts.map { post ->
+        val basePosts = posts.map { post ->
             SocialPostMapper.map(post, attachmentsByPost[post.id].orEmpty(), publicUrl)
         }
+        return applyLikeState(basePosts, reactions, userId)
     }
 
     override suspend fun createPost(content: String): CreatePostResult {
@@ -165,9 +206,52 @@ class SupabaseSocialPostRepository(
         }
     }
 
-    private fun requireActiveSession() {
-        check(auth.currentSessionOrNull() != null) {
-            "Your Work Social session is no longer active. Please sign in again."
+    override suspend fun likePost(postId: String): LikeMutationResult = setLike(postId, true)
+
+    override suspend fun unlikePost(postId: String): LikeMutationResult = setLike(postId, false)
+
+    private suspend fun setLike(postId: String, liked: Boolean): LikeMutationResult {
+        val userId = auth.currentSessionOrNull()?.user?.id
+            ?: return LikeMutationResult.Failure("Your Work Social session is no longer active. Please sign in again.")
+        if (postId.isBlank()) return LikeMutationResult.Failure("Post ID cannot be empty.")
+
+        return runCatching {
+            if (liked) {
+                postgrest.from("post_reactions").upsert(
+                    LikePayload(post_id = postId, profile_id = userId, reaction = "like")
+                ) {
+                    onConflict = "post_id,profile_id"
+                }
+            } else {
+                postgrest.from("post_reactions").delete {
+                    filter {
+                        eq("post_id", postId)
+                        eq("profile_id", userId)
+                    }
+                }
+            }
+
+            val reactions = postgrest.from("post_reactions").select(
+                columns = Columns.list("post_id, profile_id, reaction")
+            ) {
+                filter { eq("post_id", postId) }
+            }.decodeList<PostReactionDto>()
+
+            LikeMutationResult.Success(
+                likeCount = reactions.count { it.reaction == "like" },
+                isLikedByCurrentUser = reactions.any {
+                    it.profile_id == userId && it.reaction == "like"
+                },
+            )
+        }.getOrElse { error ->
+            LikeMutationResult.Failure(
+                error.message?.takeIf(String::isNotBlank)
+                    ?: if (liked) "Unable to like this post right now." else "Unable to unlike this post right now.",
+            )
         }
     }
+
+    private fun requireActiveSession(): String =
+        auth.currentSessionOrNull()?.user?.id
+            ?: error("Your Work Social session is no longer active. Please sign in again.")
 }

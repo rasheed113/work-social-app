@@ -1,6 +1,7 @@
 package com.rasheed113.worksocial
 
 import com.rasheed113.worksocial.domain.social.CreatePostResult
+import com.rasheed113.worksocial.domain.social.LikeMutationResult
 import com.rasheed113.worksocial.domain.social.SocialHomeState
 import com.rasheed113.worksocial.domain.social.SocialPost
 import com.rasheed113.worksocial.domain.social.SocialPostAuthor
@@ -108,6 +109,10 @@ class SocialHomeTest {
             override suspend fun getHomePosts(): List<SocialPost> = gate.await()
             override suspend fun createPost(content: String): CreatePostResult =
                 CreatePostResult.Failure("not used by this test")
+            override suspend fun likePost(postId: String): LikeMutationResult =
+                LikeMutationResult.Failure("not used by this test")
+            override suspend fun unlikePost(postId: String): LikeMutationResult =
+                LikeMutationResult.Failure("not used by this test")
         })
 
         viewModel.load()
@@ -132,5 +137,9 @@ class SocialHomeTest {
         override suspend fun getHomePosts(): List<SocialPost> = result.getOrThrow()
         override suspend fun createPost(content: String): CreatePostResult =
             CreatePostResult.Failure("not used by this test")
+        override suspend fun likePost(postId: String): LikeMutationResult =
+            LikeMutationResult.Failure("not used by this test")
+        override suspend fun unlikePost(postId: String): LikeMutationResult =
+            LikeMutationResult.Failure("not used by this test")
     }
 }
