@@ -107,7 +107,7 @@ class SupabaseSocialPostRepository(
         ) {
             filter { eq("privacy", "public") }
             order(column = "created_at", order = Order.DESCENDING)
-            limit(count = INITIAL_PAGE_SIZE)
+            limit(count = INITIAL_PAGE_SIZE.toLong())
         }.decodeList<PostDto>()
 
         if (posts.isEmpty()) return emptyList()
