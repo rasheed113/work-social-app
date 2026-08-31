@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -41,21 +43,29 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rasheed113.worksocial.domain.account.AccountRepository
 import com.rasheed113.worksocial.domain.account.AccountState
+import com.rasheed113.worksocial.domain.activity.ActivityRepository
+import com.rasheed113.worksocial.domain.activity.ActivityState
 import com.rasheed113.worksocial.domain.auth.AuthState
 import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import com.rasheed113.worksocial.presentation.account.AccountViewModel
 import com.rasheed113.worksocial.presentation.account.AccountViewModelFactory
+import com.rasheed113.worksocial.presentation.activity.ActivityScreen
+import com.rasheed113.worksocial.presentation.activity.ActivityViewModel
+import com.rasheed113.worksocial.presentation.activity.ActivityViewModelFactory
 import com.rasheed113.worksocial.presentation.auth.AuthUiState
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.navigation.AppDestination
 import com.rasheed113.worksocial.presentation.social.CreatePostScreen
 import com.rasheed113.worksocial.presentation.social.SocialHomeScreen
 
+data class SocialNotificationTarget(val postId: String, val commentId: String?)
+
 @Composable
 fun WorkSocialApp(
     viewModel: AuthViewModel,
     accountRepository: AccountRepository,
     socialPostRepository: SocialPostRepository,
+    activityRepository: ActivityRepository,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     WorkSocialTheme {
@@ -63,7 +73,7 @@ fun WorkSocialApp(
             AuthState.Initializing -> LoadingScreen()
             AuthState.SignedOut -> AuthScreen(state, viewModel)
             is AuthState.Error -> AuthScreen(state, viewModel)
-            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository)
+            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository, activityRepository)
         }
     }
 }
@@ -158,19 +168,27 @@ private fun AuthenticatedShell(
     viewModel: AuthViewModel,
     accountRepository: AccountRepository,
     socialPostRepository: SocialPostRepository,
+    activityRepository: ActivityRepository,
 ) {
     val navController = rememberNavController()
     var socialRefreshToken by remember { mutableIntStateOf(0) }
+    var socialNotificationTarget by remember { mutableStateOf<SocialNotificationTarget?>(null) }
     val accountViewModel: AccountViewModel = viewModel(
         key = "account-$userId",
         factory = AccountViewModelFactory(accountRepository),
     )
     val accountState by accountViewModel.state.collectAsStateWithLifecycle()
+    val activityViewModel: ActivityViewModel = viewModel(
+        key = "activity-$userId",
+        factory = ActivityViewModelFactory(activityRepository),
+    )
+    val activityState by activityViewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(userId) { accountViewModel.load(userId) }
 
-    val destinations = listOf(AppDestination.Social, AppDestination.WorkHouse)
+    val destinations = listOf(AppDestination.Social, AppDestination.Activity, AppDestination.WorkHouse)
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val isCreatePost = currentRoute == AppDestination.CreatePost.route
+    val unreadCount = (activityState as? ActivityState.Success)?.unreadCount ?: 0
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -182,7 +200,13 @@ private fun AuthenticatedShell(
                         NavigationBarItem(
                             selected = currentRoute == destination.route,
                             onClick = { navController.navigate(destination.route) { launchSingleTop = true } },
-                            icon = {},
+                            icon = {
+                                if (destination == AppDestination.Activity && unreadCount > 0) {
+                                    BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") }
+                                } else {
+                                    Text(if (destination == AppDestination.Social) "⌂" else if (destination == AppDestination.WorkHouse) "▣" else "♢")
+                                }
+                            },
                             label = { Text(destination.label) },
                         )
                     }
@@ -197,10 +221,23 @@ private fun AuthenticatedShell(
                 modifier = Modifier.weight(1f),
             ) {
                 composable(AppDestination.Social.route) {
+                    val target = socialNotificationTarget
                     SocialHomeScreen(
                         repository = socialPostRepository,
                         refreshToken = socialRefreshToken,
+                        targetPostId = target?.postId,
+                        targetCommentId = target?.commentId,
+                        onTargetConsumed = { socialNotificationTarget = null },
                         onCreatePost = { navController.navigate(AppDestination.CreatePost.route) },
+                    )
+                }
+                composable(AppDestination.Activity.route) {
+                    ActivityScreen(
+                        viewModel = activityViewModel,
+                        onOpenPost = { postId, commentId ->
+                            socialNotificationTarget = SocialNotificationTarget(postId, commentId)
+                            navController.navigate(AppDestination.Social.route) { launchSingleTop = true }
+                        },
                     )
                 }
                 composable(AppDestination.CreatePost.route) {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -31,11 +32,29 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun SocialHomeScreen(repository: SocialPostRepository, refreshToken: Int = 0, onCreatePost: () -> Unit = {}) {
+fun SocialHomeScreen(
+    repository: SocialPostRepository,
+    refreshToken: Int = 0,
+    onCreatePost: () -> Unit = {},
+    targetPostId: String? = null,
+    targetCommentId: String? = null,
+    onTargetConsumed: () -> Unit = {},
+) {
     val homeViewModel: SocialHomeViewModel = viewModel(factory = SocialHomeViewModelFactory(repository))
     val state by homeViewModel.state.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
     var openCommentsPostId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(refreshToken) { if (refreshToken == 0) homeViewModel.load() else homeViewModel.refresh() }
+    LaunchedEffect(targetPostId, targetCommentId, state) {
+        val current = state
+        if (targetPostId.isNullOrBlank() || current !is SocialHomeState.Success) return@LaunchedEffect
+        val index = current.posts.indexOfFirst { it.id == targetPostId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+            if (!targetCommentId.isNullOrBlank()) openCommentsPostId = targetPostId
+            onTargetConsumed()
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Text("Home", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Your Social feed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -47,7 +66,7 @@ fun SocialHomeScreen(repository: SocialPostRepository, refreshToken: Int = 0, on
             SocialHomeState.Empty -> EmptyContent(homeViewModel::refresh)
             is SocialHomeState.Error -> ErrorContent(current.message, homeViewModel::refresh)
             is SocialHomeState.Success -> {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(current.posts, key = SocialPost::id) { post -> SocialPostCard(post, post.id in current.likingPostIds, { homeViewModel.toggleLike(post.id) }, { openCommentsPostId = post.id }) }
                 }
                 openCommentsPostId?.let { postId -> current.posts.firstOrNull { it.id == postId }?.let { post -> CommentsSheet(post, current.comments[postId], current.actionError, current.commentMutations, { homeViewModel.openComments(postId) }, { homeViewModel.createComment(postId, it) }, { homeViewModel.deleteComment(postId, it) }, { openCommentsPostId = null }) } }
