@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.Flow
 
 data class AuthenticatedIdentity(val userId: String, val email: String?)
 
+data class SignUpOutcome(val sessionEstablished: Boolean)
+
 sealed interface AuthState {
     data object Initializing : AuthState
     data object SignedOut : AuthState
@@ -14,6 +16,6 @@ sealed interface AuthState {
 interface AuthRepository {
     val authState: Flow<AuthState>
     suspend fun signIn(email: String, password: String)
-    suspend fun signUp(email: String, password: String, displayName: String)
+    suspend fun signUp(email: String, password: String, displayName: String): SignUpOutcome
     suspend fun signOut()
 }

@@ -3,6 +3,7 @@ package com.rasheed113.worksocial.infrastructure.auth
 import com.rasheed113.worksocial.domain.auth.AuthRepository
 import com.rasheed113.worksocial.domain.auth.AuthState
 import com.rasheed113.worksocial.domain.auth.AuthenticatedIdentity
+import com.rasheed113.worksocial.domain.auth.SignUpOutcome
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -32,12 +33,13 @@ class SupabaseAuthRepository(private val auth: Auth) : AuthRepository {
         }
     }
 
-    override suspend fun signUp(email: String, password: String, displayName: String) {
+    override suspend fun signUp(email: String, password: String, displayName: String): SignUpOutcome {
         auth.signUpWith(Email) {
             this.email = email.trim()
             this.password = password
             data = buildJsonObject { put("display_name", displayName.trim()) }
         }
+        return SignUpOutcome(sessionEstablished = auth.currentSessionOrNull() != null)
     }
 
     override suspend fun signOut() = auth.signOut()
