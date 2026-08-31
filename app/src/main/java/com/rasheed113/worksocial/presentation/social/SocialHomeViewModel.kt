@@ -2,103 +2,85 @@ package com.rasheed113.worksocial.presentation.social
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rasheed113.worksocial.domain.social.LikeMutationResult
-import com.rasheed113.worksocial.domain.social.SocialHomeState
-import com.rasheed113.worksocial.domain.social.SocialPostRepository
+import com.rasheed113.worksocial.domain.social.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class SocialHomeViewModel(
-    private val repository: SocialPostRepository,
-) : ViewModel() {
+class SocialHomeViewModel(private val repository: SocialPostRepository) : ViewModel() {
     private val _state = MutableStateFlow<SocialHomeState>(SocialHomeState.Loading)
     val state: StateFlow<SocialHomeState> = _state.asStateFlow()
-
     private var loaded = false
+    private val loadingCommentPosts = mutableSetOf<String>()
+    private val creatingCommentPosts = mutableSetOf<String>()
+    private val deletingComments = mutableSetOf<String>()
 
-    fun load() {
-        if (loaded) return
-        refreshInternal()
-    }
-
-    fun refresh() {
-        refreshInternal()
-    }
+    fun load() { if (!loaded) refreshInternal() }
+    fun refresh() { refreshInternal() }
 
     fun toggleLike(postId: String) {
         val current = _state.value as? SocialHomeState.Success ?: return
         if (postId in current.likingPostIds) return
         val post = current.posts.firstOrNull { it.id == postId } ?: return
-
-        _state.value = current.copy(
-            likingPostIds = current.likingPostIds + postId,
-            actionError = null,
-        )
-
+        _state.value = current.copy(likingPostIds = current.likingPostIds + postId, actionError = null)
         viewModelScope.launch {
-            val result = if (post.isLikedByCurrentUser) {
-                repository.unlikePost(postId)
-            } else {
-                repository.likePost(postId)
-            }
-
-            when (result) {
-                is LikeMutationResult.Success -> {
-                    val latest = _state.value as? SocialHomeState.Success
-                    if (latest != null) {
-                        _state.value = latest.copy(
-                            posts = latest.posts.map { item ->
-                                if (item.id == postId) {
-                                    item.copy(
-                                        likeCount = result.likeCount,
-                                        isLikedByCurrentUser = result.isLikedByCurrentUser,
-                                    )
-                                } else item
-                            },
-                            likingPostIds = latest.likingPostIds - postId,
-                            actionError = null,
-                        )
-                    }
-                }
-                is LikeMutationResult.Failure -> {
-                    val latest = _state.value as? SocialHomeState.Success
-                    if (latest != null) {
-                        _state.value = latest.copy(
-                            likingPostIds = latest.likingPostIds - postId,
-                            actionError = result.message,
-                        )
-                    }
-                }
+            val result = if (post.isLikedByCurrentUser) repository.unlikePost(postId) else repository.likePost(postId)
+            val latest = _state.value as? SocialHomeState.Success ?: return@launch
+            _state.value = when (result) {
+                is LikeMutationResult.Success -> latest.copy(posts = latest.posts.map { if (it.id == postId) it.copy(likeCount = result.likeCount, isLikedByCurrentUser = result.isLikedByCurrentUser) else it }, likingPostIds = latest.likingPostIds - postId)
+                is LikeMutationResult.Failure -> latest.copy(likingPostIds = latest.likingPostIds - postId, actionError = result.message)
             }
         }
     }
 
-    fun clearActionError() {
+    fun openComments(postId: String) {
         val current = _state.value as? SocialHomeState.Success ?: return
-        if (current.actionError != null) _state.value = current.copy(actionError = null)
+        if (postId in loadingCommentPosts) return
+        loadingCommentPosts += postId
+        _state.value = current.copy(comments = current.comments + (postId to CommentsState.Loading))
+        viewModelScope.launch {
+            val result = repository.getComments(postId)
+            loadingCommentPosts -= postId
+            val latest = _state.value as? SocialHomeState.Success ?: return@launch
+            val commentState = when (result) { is CommentsResult.Success -> CommentsState.Success(result.comments); is CommentsResult.Failure -> CommentsState.Error(result.message) }
+            _state.value = latest.copy(comments = latest.comments + (postId to commentState))
+        }
     }
+
+    fun createComment(postId: String, content: String) {
+        if (postId in creatingCommentPosts) return
+        if (content.trim().isEmpty()) { setActionError("Comment cannot be empty."); return }
+        creatingCommentPosts += postId
+        updateCommentMutations { it + postId }
+        viewModelScope.launch {
+            val result = repository.createComment(postId, content)
+            creatingCommentPosts -= postId
+            updateCommentMutations { it - postId }
+            when (result) { is CreateCommentResult.Created -> openComments(postId); is CreateCommentResult.Failure -> setActionError(result.message) }
+        }
+    }
+
+    fun deleteComment(postId: String, commentId: String) {
+        if (commentId in deletingComments) return
+        deletingComments += commentId
+        updateCommentMutations { it + commentId }
+        viewModelScope.launch {
+            val result = repository.deleteComment(commentId)
+            deletingComments -= commentId
+            updateCommentMutations { it - commentId }
+            when (result) { is DeleteCommentResult.Deleted -> openComments(postId); is DeleteCommentResult.Failure -> setActionError(result.message) }
+        }
+    }
+
+    fun clearActionError() { val current = _state.value as? SocialHomeState.Success ?: return; _state.value = current.copy(actionError = null) }
+    private fun setActionError(message: String) { val current = _state.value as? SocialHomeState.Success ?: return; _state.value = current.copy(actionError = message) }
+    private fun updateCommentMutations(transform: (Set<String>) -> Set<String>) { val current = _state.value as? SocialHomeState.Success ?: return; _state.value = current.copy(commentMutations = transform(current.commentMutations)) }
 
     private fun refreshInternal() {
         viewModelScope.launch {
             _state.value = SocialHomeState.Loading
-            runCatching { repository.getHomePosts() }
-                .onSuccess { posts ->
-                    loaded = true
-                    _state.value = if (posts.isEmpty()) {
-                        SocialHomeState.Empty
-                    } else {
-                        SocialHomeState.Success(posts)
-                    }
-                }
-                .onFailure { error ->
-                    loaded = false
-                    _state.value = SocialHomeState.Error(
-                        error.message?.takeIf(String::isNotBlank)
-                            ?: "Unable to load Social Home right now.",
-                    )
-                }
+            runCatching { repository.getHomePosts() }.onSuccess { posts -> loaded = true; _state.value = if (posts.isEmpty()) SocialHomeState.Empty else SocialHomeState.Success(posts) }.onFailure { loaded = false; _state.value = SocialHomeState.Error(it.message?.takeIf(String::isNotBlank) ?: "Unable to load Social Home right now.") }
         }
     }
 }
