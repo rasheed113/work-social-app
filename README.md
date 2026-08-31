@@ -12,6 +12,7 @@ Native Android application for Work Social. The website repository `rasheed113/w
 - Authenticated Social / Work House shell with no mock data
 - Explicit push/call integration boundaries; no fake delivery
 - Release signing configured through environment variables
+- Compile/target SDK 37
 
 ## Configuration
 
