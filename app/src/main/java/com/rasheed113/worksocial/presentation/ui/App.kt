@@ -22,7 +22,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,21 +41,27 @@ import androidx.navigation.compose.rememberNavController
 import com.rasheed113.worksocial.domain.account.AccountRepository
 import com.rasheed113.worksocial.domain.account.AccountState
 import com.rasheed113.worksocial.domain.auth.AuthState
+import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import com.rasheed113.worksocial.presentation.account.AccountViewModel
 import com.rasheed113.worksocial.presentation.account.AccountViewModelFactory
 import com.rasheed113.worksocial.presentation.auth.AuthUiState
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.navigation.AppDestination
+import com.rasheed113.worksocial.presentation.social.SocialHomeScreen
 
 @Composable
-fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository) {
+fun WorkSocialApp(
+    viewModel: AuthViewModel,
+    accountRepository: AccountRepository,
+    socialPostRepository: SocialPostRepository,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     WorkSocialTheme {
         when (val auth = state.auth) {
             AuthState.Initializing -> LoadingScreen()
             AuthState.SignedOut -> AuthScreen(state, viewModel)
             is AuthState.Error -> AuthScreen(state, viewModel)
-            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository)
+            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository)
         }
     }
 }
@@ -146,7 +151,12 @@ private fun AuthScreen(state: AuthUiState, viewModel: AuthViewModel) {
 }
 
 @Composable
-private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository) {
+private fun AuthenticatedShell(
+    userId: String,
+    viewModel: AuthViewModel,
+    accountRepository: AccountRepository,
+    socialPostRepository: SocialPostRepository,
+) {
     val navController = rememberNavController()
     val accountViewModel: AccountViewModel = viewModel(
         key = "account-$userId",
@@ -180,7 +190,7 @@ private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, account
                 modifier = Modifier.weight(1f),
             ) {
                 composable(AppDestination.Social.route) {
-                    AuthenticatedSection("Social", accountState) { accountViewModel.retry(userId) }
+                    SocialHomeScreen(socialPostRepository)
                 }
                 composable(AppDestination.WorkHouse.route) {
                     AuthenticatedSection("Work House", accountState) { accountViewModel.retry(userId) }
@@ -231,7 +241,7 @@ private fun AuthenticatedSection(title: String, accountState: AccountState, onRe
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun AppTopBar(title: String) {
     TopAppBar(title = { Text(title) })
