@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rasheed113.worksocial.MainActivity
-import com.rasheed113.worksocial.infrastructure.supabase.SupabaseClientProvider
+import com.rasheed113.worksocial.WorkSocialApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,9 +25,8 @@ class WorkSocialFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         scope.launch {
-            val supabase = SupabaseClientProvider.create()
-            DevicePushTokenRepository(supabase).register(token)
-            supabase.close()
+            val supabase = (application as WorkSocialApplication).supabase
+            DevicePushTokenRepository(supabase.postgrest, supabase.auth).register(token)
         }
     }
 
@@ -77,13 +76,8 @@ class WorkSocialFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CALL_CHANNEL_ID,
-                "Incoming calls",
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CALL_CHANNEL_ID, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Real Work Social incoming call alerts"
             },
         )
