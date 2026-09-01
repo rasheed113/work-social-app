@@ -6,6 +6,7 @@ import com.rasheed113.worksocial.domain.auth.AuthState
 import com.rasheed113.worksocial.domain.auth.AuthenticatedIdentity
 import com.rasheed113.worksocial.domain.auth.SignUpOutcome
 import com.rasheed113.worksocial.infrastructure.notifications.DevicePushTokenRepository
+import com.rasheed113.worksocial.platform.diagnostics.DeviceForensics
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -34,18 +35,26 @@ class SupabaseAuthRepository(
     }
 
     override suspend fun signIn(email: String, password: String) {
-        auth.signInWith(Email) {
-            this.email = email.trim()
-            this.password = password
-        }
+        runCatching {
+            auth.signInWith(Email) {
+                this.email = email.trim()
+                this.password = password
+            }
+        }.onFailure {
+            DeviceForensics.recordRequestFailure(it)
+        }.getOrThrow()
     }
 
     override suspend fun signUp(email: String, password: String, displayName: String): SignUpOutcome {
-        auth.signUpWith(Email) {
-            this.email = email.trim()
-            this.password = password
-            data = buildJsonObject { put("display_name", displayName.trim()) }
-        }
+        runCatching {
+            auth.signUpWith(Email) {
+                this.email = email.trim()
+                this.password = password
+                data = buildJsonObject { put("display_name", displayName.trim()) }
+            }
+        }.onFailure {
+            DeviceForensics.recordRequestFailure(it)
+        }.getOrThrow()
         return SignUpOutcome(sessionEstablished = auth.currentSessionOrNull() != null)
     }
 
@@ -56,6 +65,8 @@ class SupabaseAuthRepository(
                 DevicePushTokenRepository(postgrest, auth).unregister(token).getOrThrow()
             }
         }
-        auth.signOut()
+        runCatching { auth.signOut() }
+            .onFailure { DeviceForensics.recordRequestFailure(it) }
+            .getOrThrow()
     }
 }
