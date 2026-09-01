@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,7 +41,6 @@ private val WsPurple = Color(0xFF6D5DFC)
 private val WsIndigo = Color(0xFF5146E5)
 private val WsCyan = Color(0xFF22B8D4)
 private val WsBorder = Color(0x2264748B)
-private val WsSurface = Color(0xFFF7F9FC)
 
 @Composable
 fun SocialHomeScreen(
@@ -153,9 +153,7 @@ private fun HomeActionButton(label: String, onClick: () -> Unit, filled: Boolean
 @Composable
 private fun FeedSectionHeader() {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(
-            Brush.linearGradient(listOf(Color.White, Color(0xFFF1F5FF)))
-        ).padding(horizontal = 13.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Brush.linearGradient(listOf(Color.White, Color(0xFFF1F5FF)))).padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(7.dp).height(27.dp).clip(RoundedCornerShape(99.dp)).background(Brush.verticalGradient(listOf(WsCyan, WsPurple, Color(0xFFFF5CA8)))))
@@ -188,11 +186,7 @@ private fun EmptyContent(onRefresh: () -> Unit) {
 @Composable
 private fun ErrorContent(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
-        ) {
+        Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Unable to load Social Home", fontWeight = FontWeight.Black, color = WsText)
                 Text(message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
@@ -204,13 +198,14 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun SocialPostCard(post: SocialPost, isLikeProcessing: Boolean, onToggleLike: () -> Unit, onComments: () -> Unit) {
+    val context = LocalContext.current
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(post.author.avatar_url, post.author.display_name)
                 Spacer(Modifier.width(9.dp))
@@ -238,6 +233,20 @@ private fun SocialPostCard(post: SocialPost, isLikeProcessing: Boolean, onToggle
                     }
                 }
                 TextButton(onClick = onComments, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Comments", color = WsText, fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                TextButton(
+                    onClick = {
+                        val shareText = buildString {
+                            append("${post.author.display_name} on Work Social")
+                            if (post.content.isNotBlank()) append("\n\n${post.content}")
+                            append("\n\nPost ID: ${post.id}")
+                        }
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                        }, "Share post"))
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) { Text("Share", color = WsText, fontWeight = FontWeight.Bold, fontSize = 12.sp) }
             }
         }
     }
@@ -282,8 +291,11 @@ private fun CommentRow(comment: SocialComment, mutations: Set<String>, onDelete:
 
 @Composable
 private fun Avatar(url: String?, name: String, size: androidx.compose.ui.unit.Dp = 44.dp) {
-    if (!url.isNullOrBlank()) AsyncImage(model = url, contentDescription = "$name avatar", modifier = Modifier.size(size).clip(CircleShape), contentScale = ContentScale.Crop)
-    else Box(Modifier.size(size).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFE9E7FF), Color(0xFFDDF8FC)))), contentAlignment = Alignment.Center) { Text(name.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Black, color = WsIndigo) }
+    val ring = Brush.linearGradient(listOf(WsPurple, WsCyan, Color(0xFFFF5CA8)))
+    Box(Modifier.size(size).clip(CircleShape).background(ring).padding(2.dp)) {
+        if (!url.isNullOrBlank()) AsyncImage(model = url, contentDescription = "$name avatar", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+        else Box(Modifier.fillMaxSize().clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFE9E7FF), Color(0xFFDDF8FC)))), contentAlignment = Alignment.Center) { Text(name.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Black, color = WsIndigo) }
+    }
 }
 
 @Composable
