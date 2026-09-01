@@ -17,6 +17,7 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -106,7 +107,7 @@ class SupabaseWorkHouseRepository(
             var query = postgrest.from("worker_finance_received").select(columns = Columns.list(FINANCE_RECEIVED_COLUMNS)) {
                 filter {
                     eq("worker_profile_id", workerProfileId)
-                    isNull("deleted_at")
+                    exact("deleted_at", null)
                     if (filter == FinanceHistoryFilter.payments) eq("entry_type", "payment")
                     if (filter == FinanceHistoryFilter.advances) eq("entry_type", "advance")
                     cursors.received?.let { cursor ->
@@ -158,7 +159,7 @@ class SupabaseWorkHouseRepository(
             filter {
                 eq("id", id)
                 eq("worker_profile_id", workerProfileId)
-                isNull("deleted_at")
+                exact("deleted_at", null)
             }
         }
     }
@@ -170,7 +171,7 @@ class SupabaseWorkHouseRepository(
             filter {
                 eq("id", id)
                 eq("worker_profile_id", workerProfileId)
-                isNull("deleted_at")
+                exact("deleted_at", null)
             }
         }
     }
@@ -182,7 +183,7 @@ class SupabaseWorkHouseRepository(
             filter {
                 eq("id", id)
                 eq("worker_profile_id", workerProfileId)
-                isNotNull("deleted_at")
+                filterNot("deleted_at", FilterOperator.IS, null)
             }
         }
     }
@@ -219,24 +220,6 @@ class SupabaseWorkHouseRepository(
         }
     }
 
-    private fun toWorkHistoryEntry(row: JsonObject) = WorkHistoryEntry(
-        id = row.string("id"), workerProfileId = row.string("worker_profile_id"), itemName = row.string("item_name"),
-        quantity = row.string("quantity"), rate = row.string("rate"), total = row.string("total"),
-        occurredAt = row.string("occurred_at"), lifecycleState = row.string("lifecycle_state"),
-    )
-
-    private fun toFinanceReceivedRecord(row: JsonObject) = FinanceReceivedRecord(
-        id = row.string("id"), workerProfileId = row.string("worker_profile_id"),
-        entryType = when (row.string("entry_type")) {
-            "advance" -> FinanceReceivedType.advance
-            else -> FinanceReceivedType.payment
-        },
-        amount = canonicalAmount(row.stringOrZero("amount")),
-        receivedAt = row.string("received_at"), createdAt = row.string("created_at"),
-        deletedAt = row["deleted_at"]?.jsonPrimitive?.contentOrNull,
-    )
-
-    private fun canonicalAmount(value: String): String = runCatching { BigDecimal(value.trim()).setScale(4).stripTrailingZeros().toPlainString() }.getOrElse { value.trim() }
     private fun JsonObject.string(key: String) = this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
     private fun JsonObject.stringOrZero(key: String) = this[key]?.jsonPrimitive?.contentOrNull ?: "0"
 }
