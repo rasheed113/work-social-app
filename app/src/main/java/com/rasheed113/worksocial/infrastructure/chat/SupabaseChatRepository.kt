@@ -6,6 +6,7 @@ import com.rasheed113.worksocial.domain.chat.Conversation
 import com.rasheed113.worksocial.domain.chat.Message
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.decodeSingle
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.realtime.PostgresAction
@@ -71,11 +72,17 @@ class SupabaseChatRepository(private val postgrest: Postgrest, private val auth:
 
     override fun observeMessages(userId: String, conversationId: String): Flow<Unit> = callbackFlow {
         requireUser(userId)
-        val channel = realtime.createChannel("android-chat:$userId:$conversationId")
-        val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") { table = "messages"; filter = "conversation_id=eq.$conversationId" }
+        val channel = realtime.channel("android-chat:$userId:$conversationId")
+        val changes = channel.postgrestChangeFlow<PostgresAction>(schema = "public") {
+            table = "messages"
+            filter = "conversation_id=eq.$conversationId"
+        }
         val job = scope.launch { changes.collect { trySend(Unit).isSuccess } }
-        scope.launch { channel.join(blockUntilJoined = true) }
-        awaitClose { job.cancel(); scope.launch { channel.leave() } }
+        scope.launch { channel.subscribe() }
+        awaitClose {
+            job.cancel()
+            scope.launch { channel.unsubscribe() }
+        }
     }
 
     private fun MessageRow.toModel() = Message(id, conversation_id, sender_id, content, created_at, read_at, deleted_at, edited_at)
