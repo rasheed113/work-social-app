@@ -34,7 +34,7 @@ jobs:
           if [[ -v WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY && -n "$WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY" ]]; then
             echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=present"
           else
-            echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=absent"
+            echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=absent (Gradle public fallback will be used)"
           fi
           if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabaseUrl[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then
             echo "user-gradle-properties:supabaseUrl=present"
@@ -59,10 +59,6 @@ jobs:
             fi
           else
             echo "local.properties:file=absent"
-          fi
-          if [[ -z "$WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY" ]]; then
-            echo "Supabase publishable key is not available to this CI run."
-            exit 1
           fi
 
       - name: Set up JDK 21
