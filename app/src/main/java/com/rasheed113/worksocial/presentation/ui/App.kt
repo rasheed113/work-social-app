@@ -96,7 +96,7 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
                 composable(AppDestination.Profile.route) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null) }
                 composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry -> ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId")) }
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
-                composable(AppDestination.WorkHouse.route) { WorkHouseScreen(workHouseViewModel, userId, onExit = { navController.popBackStack() }) }
+                composable(AppDestination.WorkHouse.route) { WorkHouseScreen(workHouseViewModel, userId, workHouseRepository, onExit = { navController.popBackStack() }) }
             }
             CallHost(callViewModel)
             if (!isCreatePost && !isWorkHouse) Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) { HorizontalDivider(); Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) { TextButton(onClick = viewModel::signOut) { Text("Sign out") } } }
