@@ -6,7 +6,6 @@ import com.rasheed113.worksocial.domain.chat.Conversation
 import com.rasheed113.worksocial.domain.chat.Message
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.postgrest.decodeSingle
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
@@ -83,7 +82,7 @@ class SupabaseChatRepository(private val postgrest: Postgrest, private val auth:
         require(normalized.length <= 10_000) { "Message is too long. Maximum length is 10,000 characters." }
         val inserted = postgrest.from("messages").insert(TextPayload(conversationId, normalized)) {
             select(columns = Columns.list("id,conversation_id,sender_id,content,created_at,read_at,deleted_at,edited_at"))
-        }.decodeSingle<MessageRow>()
+        }.decodeList<MessageRow>().firstOrNull() ?: error("The message could not be created.")
         check(inserted.sender_id == userId) { "The server returned a message owned by another user." }
         inserted.toModel()
     }
