@@ -23,6 +23,7 @@ import com.rasheed113.worksocial.infrastructure.friends.SupabaseFriendsRepositor
 import com.rasheed113.worksocial.infrastructure.notifications.FcmRegistrationManager
 import com.rasheed113.worksocial.infrastructure.notifications.WorkSocialFirebaseMessagingService
 import com.rasheed113.worksocial.infrastructure.social.SupabaseSocialPostRepository
+import com.rasheed113.worksocial.infrastructure.work.SupabaseWorkHouseRepository
 import com.rasheed113.worksocial.platform.calls.PendingIncomingCallStore
 import com.rasheed113.worksocial.platform.calls.WebRtcCallEngine
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
         val friendsRepository = SupabaseFriendsRepository(supabase.postgrest, supabase.auth)
         val chatRepository = SupabaseChatRepository(supabase.postgrest, supabase.auth, supabase.realtime)
         val callRepository = SupabaseCallRepository(supabase.postgrest, supabase.auth, supabase.realtime)
+        val workHouseRepository = SupabaseWorkHouseRepository(supabase.postgrest, supabase.auth)
         val callEngine = WebRtcCallEngine(applicationContext)
 
         lifecycleScope.launch {
@@ -70,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
-            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, callEngine)
+            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, workHouseRepository, callEngine)
         }
     }
 
@@ -81,23 +83,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun ensureIncomingCallChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(
-                    WorkSocialFirebaseMessagingService.CALL_CHANNEL_ID,
-                    "Incoming calls",
-                    NotificationManager.IMPORTANCE_HIGH,
-                ).apply { description = "Real Work Social incoming call alerts" },
-            )
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(WorkSocialFirebaseMessagingService.CALL_CHANNEL_ID, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply { description = "Real Work Social incoming call alerts" })
     }
 
     companion object {
