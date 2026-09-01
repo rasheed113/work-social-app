@@ -6,10 +6,10 @@ import com.rasheed113.worksocial.domain.auth.AuthState
 import com.rasheed113.worksocial.domain.auth.AuthenticatedIdentity
 import com.rasheed113.worksocial.domain.auth.SignUpOutcome
 import com.rasheed113.worksocial.infrastructure.notifications.DevicePushTokenRepository
-import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.postgrest.Postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -18,7 +18,7 @@ import kotlinx.serialization.json.put
 
 class SupabaseAuthRepository(
     private val auth: Auth,
-    private val supabase: SupabaseClient? = null,
+    private val postgrest: Postgrest,
 ) : AuthRepository {
     override val authState: Flow<AuthState> = auth.sessionStatus.map { status ->
         when (status) {
@@ -50,10 +50,10 @@ class SupabaseAuthRepository(
     }
 
     override suspend fun signOut() {
-        if (supabase != null && auth.currentUserOrNull() != null) {
+        if (auth.currentSessionOrNull() != null) {
             runCatching {
                 val token = FirebaseMessaging.getInstance().token.await()
-                DevicePushTokenRepository(supabase).unregister(token).getOrThrow()
+                DevicePushTokenRepository(postgrest, auth).unregister(token).getOrThrow()
             }
         }
         auth.signOut()
