@@ -17,6 +17,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inspect Supabase URL override sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in WORK_SOCIAL_SUPABASE_URL ORG_GRADLE_PROJECT_supabaseUrl; do
+            if [[ -v "$name" && -n "${!name}" ]]; then
+              echo "$name=present"
+            else
+              echo "$name=absent"
+            fi
+          done
+          if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabaseUrl[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then
+            echo "user-gradle-properties:supabaseUrl=present"
+          else
+            echo "user-gradle-properties:supabaseUrl=absent"
+          fi
+          if [[ -f "local.properties" ]]; then
+            if grep -Eq '(^|[[:space:]])supabaseUrl[[:space:]]*=' local.properties; then
+              echo "local.properties:supabaseUrl=present"
+            else
+              echo "local.properties:supabaseUrl=absent"
+            fi
+          else
+            echo "local.properties:file=absent"
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
@@ -44,6 +70,9 @@ jobs:
           actual="$(sed -n 's/.*SUPABASE_URL = "\(.*\)";.*/\1/p' "$build_config")"
           if [[ "$actual" != "$expected" ]]; then
             echo "Supabase URL verification failed: effective BuildConfig.SUPABASE_URL does not exactly match the expected URL."
+            if [[ "$actual" == *'))' ]]; then
+              echo "Detected unexpected trailing characters: ))"
+            fi
             exit 1
           fi
           echo "Supabase URL verification passed: BuildConfig.SUPABASE_URL matches the expected URL exactly."
