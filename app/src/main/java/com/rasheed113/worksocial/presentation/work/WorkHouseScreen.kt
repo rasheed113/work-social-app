@@ -13,8 +13,10 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 private data class WorkerIdentity(val id: String, val workId: String, val description: String?, val skills: List<String>)
 private data class WorkRow(val id: String, val item: String, val quantity: String, val rate: String, val total: String, val occurredAt: String)
@@ -58,11 +60,12 @@ fun WorkHouseScreen(userId: String, onExit: () -> Unit) {
                 val weekEnd = (weekStart.clone() as java.util.Calendar).apply { add(java.util.Calendar.DATE, 7) }
                 val monthStart = (dayStart.clone() as java.util.Calendar).apply { set(java.util.Calendar.DAY_OF_MONTH, 1) }
                 val monthEnd = (monthStart.clone() as java.util.Calendar).apply { add(java.util.Calendar.MONTH, 1) }
-                val totalsRow = client.postgrest.rpc("get_worker_work_totals", mapOf(
-                    "p_day_start" to iso(dayStart), "p_day_end" to iso(dayEnd),
-                    "p_week_start" to iso(weekStart), "p_week_end" to iso(weekEnd),
-                    "p_month_start" to iso(monthStart), "p_month_end" to iso(monthEnd),
-                )).decodeSingleOrNull<JsonObject>()
+                val totalsParams = buildJsonObject {
+                    put("p_day_start", iso(dayStart)); put("p_day_end", iso(dayEnd))
+                    put("p_week_start", iso(weekStart)); put("p_week_end", iso(weekEnd))
+                    put("p_month_start", iso(monthStart)); put("p_month_end", iso(monthEnd))
+                }
+                val totalsRow = client.postgrest.rpc("get_worker_work_totals", totalsParams).decodeList<JsonObject>().firstOrNull()
                 totals = totalsRow?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() } ?: emptyMap()
 
                 val rows = client.postgrest.from("work_entries").select {
@@ -80,7 +83,7 @@ fun WorkHouseScreen(userId: String, onExit: () -> Unit) {
                     row["occurred_at"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 ) }
 
-                val summary = client.postgrest.rpc("get_worker_finance_summary").decodeSingleOrNull<JsonObject>()
+                val summary = client.postgrest.rpc("get_worker_finance_summary").decodeList<JsonObject>().firstOrNull()
                 finance = summary?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }
             }.onFailure { error = it.message ?: "Work House request failed." }
             loading = false
