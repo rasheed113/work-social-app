@@ -12,8 +12,10 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 private const val WORKER_PROFILE_COLUMNS = "id, profile_id, work_id, work_description, skills"
 private const val WORK_ENTRY_COLUMNS = "id, worker_profile_id, lifecycle_state, item_name, quantity, rate, total, occurred_at"
@@ -33,10 +35,7 @@ class SupabaseWorkHouseRepository(
             profileId = row.string("profile_id"),
             workId = row.string("work_id"),
             workDescription = row["work_description"]?.jsonPrimitive?.contentOrNull,
-            skills = row["skills"]?.toString()
-                ?.removePrefix("[")?.removeSuffix("]")
-                ?.split(',')?.map { it.trim().trim('"') }
-                ?.filter { it.isNotBlank() } ?: emptyList(),
+            skills = row["skills"]?.toString()?.removePrefix("[")?.removeSuffix("]")?.split(',')?.map { it.trim().trim('"') }?.filter { it.isNotBlank() } ?: emptyList(),
         )
     }
 
@@ -45,37 +44,36 @@ class SupabaseWorkHouseRepository(
         val bounds = periodBounds()
         val row = postgrest.rpc("get_worker_work_totals", bounds).decodeList<JsonObject>().firstOrNull()
         return WorkerWorkTotals(
-            dailyTotal = row?.stringOrZero("daily_total"),
-            weeklyTotal = row?.stringOrZero("weekly_total"),
-            monthlyTotal = row?.stringOrZero("monthly_total"),
-            lifetimeTotal = row?.stringOrZero("lifetime_total"),
+            dailyTotal = row?.stringOrZero("daily_total") ?: "0",
+            weeklyTotal = row?.stringOrZero("weekly_total") ?: "0",
+            monthlyTotal = row?.stringOrZero("monthly_total") ?: "0",
+            lifetimeTotal = row?.stringOrZero("lifetime_total") ?: "0",
         )
     }
 
     override suspend fun getWorkerHistory(limit: Int, cursor: WorkHistoryCursor?): WorkHistoryPage {
         requireAuthenticated()
         val pageSize = limit.coerceIn(1, 100)
-        var query = postgrest.from("work_entries").select(columns = Columns.list(WORK_ENTRY_COLUMNS)) {
-            filter { eq("lifecycle_state", "active") }
+        val rows = postgrest.from("work_entries").select(columns = Columns.list(WORK_ENTRY_COLUMNS)) {
+            filter {
+                eq("lifecycle_state", "active")
+                if (cursor != null) {
+                    or {
+                        lt("occurred_at", cursor.occurredAt)
+                        and {
+                            eq("occurred_at", cursor.occurredAt)
+                            lt("id", cursor.id)
+                        }
+                    }
+                }
+            }
             order("occurred_at", Order.DESCENDING)
             order("id", Order.DESCENDING)
-            limit(pageSize + 1)
-        }
-        if (cursor != null) {
-            query = postgrest.from("work_entries").select(columns = Columns.list(WORK_ENTRY_COLUMNS)) {
-                filter {
-                    eq("lifecycle_state", "active")
-                    or("occurred_at.lt.${cursor.occurredAt},and(occurred_at.eq.${cursor.occurredAt},id.lt.${cursor.id})")
-                }
-                order("occurred_at", Order.DESCENDING)
-                order("id", Order.DESCENDING)
-                limit(pageSize + 1)
-            }
-        }
-        val rows = query.decodeList<JsonObject>()
+            limit((pageSize + 1).toLong())
+        }.decodeList<JsonObject>()
+
         val hasMore = rows.size > pageSize
-        val pageRows = rows.take(pageSize)
-        val entries = pageRows.map { row ->
+        val entries = rows.take(pageSize).map { row ->
             WorkHistoryEntry(
                 id = row.string("id"),
                 workerProfileId = row.string("worker_profile_id"),
@@ -105,7 +103,7 @@ class SupabaseWorkHouseRepository(
         checkNotNull(auth.currentSessionOrNull()?.user?.id) { "Your Work Social session is no longer active. Please sign in again." }
     }
 
-    private fun periodBounds(): kotlinx.serialization.json.JsonObject {
+    private fun periodBounds(): JsonObject {
         val now = java.util.Calendar.getInstance()
         fun startOfDay(source: java.util.Calendar) = (source.clone() as java.util.Calendar).apply {
             set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
@@ -119,7 +117,7 @@ class SupabaseWorkHouseRepository(
         val weekEnd = (weekStart.clone() as java.util.Calendar).apply { add(java.util.Calendar.DATE, 7) }
         val monthStart = (dayStart.clone() as java.util.Calendar).apply { set(java.util.Calendar.DAY_OF_MONTH, 1) }
         val monthEnd = (monthStart.clone() as java.util.Calendar).apply { add(java.util.Calendar.MONTH, 1) }
-        return kotlinx.serialization.json.buildJsonObject {
+        return buildJsonObject {
             put("p_day_start", iso(dayStart)); put("p_day_end", iso(dayEnd))
             put("p_week_start", iso(weekStart)); put("p_week_end", iso(weekEnd))
             put("p_month_start", iso(monthStart)); put("p_month_end", iso(monthEnd))
