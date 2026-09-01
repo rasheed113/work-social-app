@@ -2,6 +2,8 @@ package com.rasheed113.worksocial.infrastructure.social
 
 import com.rasheed113.worksocial.domain.social.CommentsResult
 import com.rasheed113.worksocial.domain.social.CreateCommentResult
+import com.rasheed113.worksocial.domain.social.CreatePostAttachment
+import com.rasheed113.worksocial.domain.social.CreatePostLocation
 import com.rasheed113.worksocial.domain.social.CreatePostResult
 import com.rasheed113.worksocial.domain.social.DeleteCommentResult
 import com.rasheed113.worksocial.domain.social.LikeMutationResult
@@ -17,19 +19,21 @@ import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.Storage
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 @Serializable internal data class PostAuthorDto(val username: String, val display_name: String, val avatar_url: String? = null)
 @Serializable internal data class PostDto(val id: String, val profile_id: String, val content: String, val privacy: String, val latitude: Double? = null, val longitude: Double? = null, val location_name: String? = null, val created_at: String, val updated_at: String, val profiles: PostAuthorDto? = null)
 @Serializable internal data class PostAttachmentDto(val id: String, val post_id: String, val kind: String, val storage_path: String, val file_name: String? = null, val mime_type: String? = null, val file_size: Long? = null)
 @Serializable internal data class PostReactionDto(val post_id: String, val profile_id: String, val reaction: String)
-@Serializable internal data class CreatePostPayload(val profile_id: String, val content: String)
+@Serializable internal data class CreatePostPayload(val profile_id: String, val content: String, val latitude: Double? = null, val longitude: Double? = null, val location_name: String? = null)
 @Serializable private data class LikePayload(val post_id: String, val profile_id: String, val reaction: String)
 @Serializable private data class CreatedPostDto(val id: String)
+@Serializable private data class CreateAttachmentPayload(val post_id: String, val profile_id: String, val kind: String, val storage_path: String, val file_name: String, val mime_type: String?, val file_size: Long)
 @Serializable internal data class CommentAuthorDto(val display_name: String, val avatar_url: String? = null)
 @Serializable internal data class CommentDto(val id: String, val post_id: String, val profile_id: String, val parent_comment_id: String? = null, val content: String, val created_at: String, val updated_at: String, val profiles: CommentAuthorDto? = null)
 @Serializable private data class CreateCommentPayload(val post_id: String, val profile_id: String, val content: String)
 
-internal fun createPostPayload(authenticatedUserId: String, content: String) = CreatePostPayload(authenticatedUserId, content.trim())
+internal fun createPostPayload(authenticatedUserId: String, content: String, location: CreatePostLocation? = null) = CreatePostPayload(authenticatedUserId, content.trim(), location?.latitude, location?.longitude, location?.name)
 internal fun applyLikeState(posts: List<SocialPost>, reactions: List<PostReactionDto>, currentUserId: String): List<SocialPost> {
     val likesByPost = reactions.asSequence().filter { it.reaction == "like" }.groupingBy(PostReactionDto::post_id).eachCount()
     val likedByCurrentUser = reactions.asSequence().filter { it.reaction == "like" && it.profile_id == currentUserId }.map(PostReactionDto::post_id).toSet()
@@ -58,11 +62,7 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
     override suspend fun getProfilePosts(profileId: String): List<SocialPost> {
         val userId = requireActiveSession()
         if (profileId.isBlank()) return emptyList()
-        val posts = postgrest.from("posts").select(columns = Columns.raw("id, profile_id, content, privacy, latitude, longitude, location_name, created_at, updated_at, profiles(username, display_name, avatar_url)")) {
-            filter { eq("profile_id", profileId) }
-            order(column = "created_at", order = Order.DESCENDING)
-            limit(INITIAL_PAGE_SIZE.toLong())
-        }.decodeList<PostDto>()
+        val posts = postgrest.from("posts").select(columns = Columns.raw("id, profile_id, content, privacy, latitude, longitude, location_name, created_at, updated_at, profiles(username, display_name, avatar_url)")) { filter { eq("profile_id", profileId) }; order(column = "created_at", order = Order.DESCENDING); limit(INITIAL_PAGE_SIZE.toLong()) }.decodeList<PostDto>()
         return hydratePosts(posts, userId)
     }
 
@@ -76,11 +76,30 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
         return applyLikeState(posts.map { SocialPostMapper.map(it, byPost[it.id].orEmpty(), publicUrl) }, reactions, userId)
     }
 
-    override suspend fun createPost(content: String): CreatePostResult {
+    override suspend fun createPost(content: String, attachments: List<CreatePostAttachment>, location: CreatePostLocation?): CreatePostResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return CreatePostResult.Failure("Your Work Social session is no longer active. Please sign in again.")
-        val payload = createPostPayload(userId, content)
-        if (payload.content.isEmpty()) return CreatePostResult.Failure("Post cannot be empty.")
-        return runCatching { CreatePostResult.Created(postgrest.from("posts").insert(payload) { select(columns = Columns.list("id")) }.decodeSingle<CreatedPostDto>().id) }.getOrElse { CreatePostResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to create your post right now.") }
+        val normalizedContent = content.trim()
+        if (normalizedContent.isEmpty() && attachments.isEmpty() && location == null) return CreatePostResult.Failure("Post cannot be empty.")
+        val postId = runCatching {
+            postgrest.from("posts").insert(createPostPayload(userId, normalizedContent, location)) { select(columns = Columns.list("id")) }.decodeSingle<CreatedPostDto>().id
+        }.getOrElse { return CreatePostResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to create your post right now.") }
+
+        val uploadedPaths = mutableListOf<String>()
+        try {
+            for (attachment in attachments) {
+                val safeName = attachment.fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val storagePath = "$userId/$postId/${UUID.randomUUID()}-$safeName"
+                storage.from("post-media").upload(storagePath, attachment.bytes) { upsert = false }
+                uploadedPaths += storagePath
+                postgrest.from("post_attachments").insert(CreateAttachmentPayload(postId, userId, attachment.kind, storagePath, attachment.fileName, attachment.mimeType, attachment.fileSize))
+            }
+            return CreatePostResult.Created(postId)
+        } catch (error: Throwable) {
+            if (uploadedPaths.isNotEmpty()) runCatching { storage.from("post-media").delete(uploadedPaths) }
+            runCatching { postgrest.from("post_attachments").delete { filter { eq("post_id", postId) } } }
+            runCatching { postgrest.from("posts").delete { filter { eq("id", postId); eq("profile_id", userId) } } }
+            return CreatePostResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "Unable to upload your post media right now.")
+        }
     }
     override suspend fun likePost(postId: String) = setLike(postId, true)
     override suspend fun unlikePost(postId: String) = setLike(postId, false)
