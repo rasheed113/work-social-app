@@ -80,7 +80,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            borderRadius: AppTokens.radiusHero,
+            borderRadius: AppTokens.radiusLg,
             gradient: AppTokens.heroGradient,
             boxShadow: AppTokens.heroShadow,
           ),
