@@ -57,12 +57,20 @@ class CreatePostViewModel(private val repository: SocialPostRepository) : ViewMo
         val attachments = current.attachments
         val location = current.location
         if (content.isEmpty() && attachments.isEmpty() && location == null) {
-            _state.value = CreatePostState.ValidationError(current.content, "Add text, media, or a location before posting.", attachments, location)
+            _state.value = CreatePostState.ValidationError(current.content, "Post cannot be empty.", attachments, location)
             return
         }
         _state.value = CreatePostState.Submitting(current.content, attachments, location)
         viewModelScope.launch {
-            when (val result = repository.createPost(content, attachments, location)) {
+            val result = if (attachments.isEmpty() && location == null) {
+                // Preserve the established text-only repository contract for existing
+                // implementations and test fakes. The interface delegates this entry
+                // point to the full contract for repositories that only implement that path.
+                repository.createPost(content)
+            } else {
+                repository.createPost(content, attachments, location)
+            }
+            when (result) {
                 is CreatePostResult.Created -> _state.value = CreatePostState.Success(result.postId)
                 is CreatePostResult.Failure -> _state.value = CreatePostState.BackendError(current.content, result.message, attachments, location)
             }
