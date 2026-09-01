@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "547307864538",
+    "project_id": "work-social-5f5e4",
+    "storage_bucket": "work-social-5f5e4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:547307864538:android:016a75fd8739d3fa6480e3",
+        "android_client_info": {
+          "package_name": "com.rasheed113.worksocial"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6Yf47GmCCiv1h2UbjzXGSYLsz-ugfUUw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
