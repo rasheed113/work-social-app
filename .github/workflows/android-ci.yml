@@ -72,6 +72,23 @@ jobs:
         with:
           gradle-version: '9.6.1'
 
+      - name: Regression test rejected Supabase URL override
+        shell: bash
+        run: |
+          set -euo pipefail
+          malformed='https://ejpcgcaoqyqjionvtsdi.supabase.co))'
+          if WORK_SOCIAL_SUPABASE_URL="$malformed" gradle --no-daemon :app:tasks >/tmp/supabase-guard.log 2>&1; then
+            echo "Regression test failed: malformed Supabase URL override was accepted."
+            cat /tmp/supabase-guard.log
+            exit 1
+          fi
+          if ! grep -Fq 'Invalid Work Social Supabase URL override' /tmp/supabase-guard.log; then
+            echo "Regression test failed: build failed, but not because the Supabase URL guard rejected the override."
+            cat /tmp/supabase-guard.log
+            exit 1
+          fi
+          echo "Regression test passed: malformed Supabase URL override is rejected before APK generation."
+
       - name: Build debug APK
         run: gradle --no-daemon clean assembleDebug
 
