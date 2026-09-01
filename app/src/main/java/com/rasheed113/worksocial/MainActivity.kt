@@ -7,9 +7,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rasheed113.worksocial.infrastructure.account.SupabaseAccountRepository
 import com.rasheed113.worksocial.infrastructure.activity.SupabaseActivityRepository
 import com.rasheed113.worksocial.infrastructure.auth.SupabaseAuthRepository
+import com.rasheed113.worksocial.infrastructure.calls.SupabaseCallRepository
 import com.rasheed113.worksocial.infrastructure.chat.SupabaseChatRepository
 import com.rasheed113.worksocial.infrastructure.friends.SupabaseFriendsRepository
 import com.rasheed113.worksocial.infrastructure.social.SupabaseSocialPostRepository
+import com.rasheed113.worksocial.platform.calls.WebRtcCallEngine
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.auth.AuthViewModelFactory
 import com.rasheed113.worksocial.presentation.ui.WorkSocialApp
@@ -30,9 +32,11 @@ class MainActivity : ComponentActivity() {
         val activityRepository = SupabaseActivityRepository(supabase.postgrest, supabase.auth, supabase.realtime)
         val friendsRepository = SupabaseFriendsRepository(supabase.postgrest, supabase.auth)
         val chatRepository = SupabaseChatRepository(supabase.postgrest, supabase.auth, supabase.realtime)
+        val callRepository = SupabaseCallRepository(supabase.postgrest, supabase.auth, supabase.realtime)
+        val callEngine = WebRtcCallEngine(applicationContext)
         setContent {
             val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
-            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository)
+            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, callEngine)
         }
     }
 }

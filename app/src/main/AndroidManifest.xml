@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <application android:name=".WorkSocialApplication" android:allowBackup="false" android:label="Work Social" android:supportsRtl="true" android:theme="@style/Theme.WorkSocial">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

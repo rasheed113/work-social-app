@@ -82,6 +82,7 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:3.5.1")
 
+    implementation("com.pexip.webrtc:webrtc:146.0.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
 

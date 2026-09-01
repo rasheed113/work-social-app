@@ -28,11 +28,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rasheed113.worksocial.domain.calls.CallKind
 import com.rasheed113.worksocial.domain.chat.ChatRepository
 import com.rasheed113.worksocial.domain.chat.Conversation
+import com.rasheed113.worksocial.platform.calls.CallViewModel
 
 @Composable
-fun ChatScreen(userId: String, viewModel: ChatViewModel) {
+fun ChatScreen(userId: String, viewModel: ChatViewModel, callViewModel: CallViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     val selected = state.conversations.firstOrNull { it.id == state.selectedConversationId }
@@ -47,7 +49,7 @@ fun ChatScreen(userId: String, viewModel: ChatViewModel) {
                 items(state.conversations, key = { it.id }) { conversation -> ConversationRow(conversation) { viewModel.select(userId, conversation.id) } }
             }
         } else {
-            ChatConversation(userId, selected, state, viewModel, draft, { draft = it }) { viewModel.select(userId, selected.id) }
+            ChatConversation(userId, selected, state, viewModel, callViewModel, draft, { draft = it }) { viewModel.select(userId, selected.id) }
         }
     }
 }
@@ -64,13 +66,19 @@ private fun ConversationRow(conversation: Conversation, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatConversation(userId: String, conversation: Conversation, state: com.rasheed113.worksocial.domain.chat.ChatState, viewModel: ChatViewModel, draft: String, setDraft: (String) -> Unit, refresh: () -> Unit) {
+private fun ChatConversation(userId: String, conversation: Conversation, state: com.rasheed113.worksocial.domain.chat.ChatState, viewModel: ChatViewModel, callViewModel: CallViewModel, draft: String, setDraft: (String) -> Unit, refresh: () -> Unit) {
     val listState = rememberLazyListState()
     LaunchedEffect(state.messages.size) { if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Column { Text(conversation.peer?.displayName ?: conversation.title ?: "Conversation", style = MaterialTheme.typography.titleMedium); conversation.peer?.username?.let { Text("@$it", style = MaterialTheme.typography.bodySmall) } }
-            TextButton(onClick = refresh) { Text("Refresh") }
+            Row {
+                conversation.peer?.let { peer ->
+                    TextButton(onClick = { callViewModel.startOutgoing(conversation.id, com.rasheed113.worksocial.domain.calls.CallPeer(peer.id, peer.displayName, peer.username, peer.avatarUrl), CallKind.AUDIO) }) { Text("Call") }
+                    TextButton(onClick = { callViewModel.startOutgoing(conversation.id, com.rasheed113.worksocial.domain.calls.CallPeer(peer.id, peer.displayName, peer.username, peer.avatarUrl), CallKind.VIDEO) }) { Text("Video") }
+                }
+                TextButton(onClick = refresh) { Text("Refresh") }
+            }
         }
         HorizontalDivider()
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp)) }
