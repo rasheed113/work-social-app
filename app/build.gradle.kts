@@ -20,7 +20,7 @@ android {
             .orElse(System.getenv("WORK_SOCIAL_SUPABASE_URL") ?: "https://ejpcgcaoqyqjionvtsdi.supabase.co")
             .get()
         val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
-            .orElse(System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY") ?: "")
+            .orElse(System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY") ?: "sb_publishable_C0Bp6jRBkpzRtnqBLcUfOA_NHZrCmam")
             .get()
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabasePublishableKey\"")
