@@ -43,7 +43,8 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
 
         val supabase = (application as WorkSocialApplication).supabase
-        supabase.handleDeeplinks(intent)
+        lifecycleScope.launch { supabase.handleDeeplinks(intent) }
+
         val authRepository = SupabaseAuthRepository(supabase.auth, supabase.postgrest)
         val accountRepository = SupabaseAccountRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val socialPostRepository = SupabaseSocialPostRepository(supabase.postgrest, supabase.auth, supabase.storage)
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                supabase.auth.sessionStatus.collect { status ->
+                supabase.auth.sessionStatus.collect { status: SessionStatus ->
                     if (status is SessionStatus.Authenticated) {
                         FcmRegistrationManager.sync(supabase.postgrest, supabase.auth)
                     }
