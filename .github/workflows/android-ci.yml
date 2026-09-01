@@ -12,6 +12,10 @@ permissions:
 
 env:
   WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY }}
+  WORK_SOCIAL_KEYSTORE_BASE64: ${{ secrets.WORK_SOCIAL_KEYSTORE_BASE64 }}
+  WORK_SOCIAL_KEYSTORE_PASSWORD: ${{ secrets.WORK_SOCIAL_KEYSTORE_PASSWORD }}
+  WORK_SOCIAL_KEY_ALIAS: ${{ secrets.WORK_SOCIAL_KEY_ALIAS }}
+  WORK_SOCIAL_KEY_PASSWORD: ${{ secrets.WORK_SOCIAL_KEY_PASSWORD }}
 
 jobs:
   build:
@@ -89,16 +93,33 @@ jobs:
           fi
           echo "Regression test passed: malformed Supabase URL override is rejected before APK generation."
 
-      - name: Build debug APK
-        run: gradle --no-daemon clean assembleDebug
-
-      - name: Verify effective Supabase BuildConfig and APK
+      - name: Prepare update-compatible signing key
         shell: bash
         run: |
           set -euo pipefail
-          build_config="$(find app/build/generated -type f -path '*debug*' -name 'BuildConfig.java' -print -quit)"
+          for name in WORK_SOCIAL_KEYSTORE_BASE64 WORK_SOCIAL_KEYSTORE_PASSWORD WORK_SOCIAL_KEY_ALIAS WORK_SOCIAL_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required GitHub Actions secret: $name"
+              echo "The existing installed app is signed with certificate 7ca89034adfc722ed4389f0d9a3d3147f5108cafc767634e5a56fa6e59fe3e32. CI must use the corresponding private key; a newly generated debug key is not update-compatible."
+              exit 1
+            fi
+          done
+          keystore="$RUNNER_TEMP/work-social-update.keystore"
+          printf '%s' "$WORK_SOCIAL_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          test -s "$keystore"
+          echo "WORK_SOCIAL_KEYSTORE_FILE=$keystore" >> "$GITHUB_ENV"
+          echo "Update-compatible signing key material prepared without printing credentials."
+
+      - name: Build signed release APK
+        run: gradle --no-daemon clean assembleRelease
+
+      - name: Verify effective Supabase BuildConfig and APK identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_config="$(find app/build/generated -type f -path '*release*' -name 'BuildConfig.java' -print -quit)"
           if [[ -z "$build_config" ]]; then
-            echo "Supabase verification failed: generated BuildConfig.java not found."
+            echo "Supabase verification failed: generated release BuildConfig.java not found."
             exit 1
           fi
 
@@ -119,11 +140,37 @@ jobs:
           fi
           echo "BuildConfig verification passed: URL exact; publishable key present and evaluated."
 
-          apk='app/build/outputs/apk/debug/app-debug.apk'
+          apk='app/build/outputs/apk/release/app-release.apk'
           if [[ ! -f "$apk" ]]; then
             echo "APK verification failed: $apk not found."
             exit 1
           fi
+
+          aapt2="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt2 | sort -V | tail -1)"
+          if [[ -z "$aapt2" ]]; then
+            echo "APK identity verification failed: aapt2 not found."
+            exit 1
+          fi
+          badging="$($aapt2 dump badging "$apk")"
+          grep -Fq "package: name='com.rasheed113.worksocial'" <<<"$badging"
+          grep -Fq "versionCode='2'" <<<"$badging"
+          grep -Fq "versionName='1.1.0'" <<<"$badging"
+          echo "APK identity verification passed: package com.rasheed113.worksocial; versionCode 2; versionName 1.1.0."
+
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
+          if [[ -z "$apksigner" ]]; then
+            echo "Signing verification failed: apksigner not found."
+            exit 1
+          fi
+          cert_sha256="$($apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]')"
+          expected_cert='7ca89034adfc722ed4389f0d9a3d3147f5108cafc767634e5a56fa6e59fe3e32'
+          if [[ "$cert_sha256" != "$expected_cert" ]]; then
+            echo "Signing verification failed: release APK certificate does not match the existing installed application's signing identity."
+            echo "Expected certificate SHA-256: $expected_cert"
+            echo "Actual certificate SHA-256:   $cert_sha256"
+            exit 1
+          fi
+          echo "Signing verification passed: release APK uses the existing application certificate."
 
           url_found=0
           malformed_found=0
@@ -154,12 +201,12 @@ jobs:
           fi
           echo "APK verification passed: exact URL present; malformed URL and unresolved Provider string absent."
 
-      - name: Upload debug APK
+      - name: Upload update-compatible APK
         uses: actions/upload-artifact@v4
         with:
-          name: work-social-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: work-social-update-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Run unit tests
-        run: gradle --no-daemon testDebugUnitTest
+        run: gradle --no-daemon testReleaseUnitTest
