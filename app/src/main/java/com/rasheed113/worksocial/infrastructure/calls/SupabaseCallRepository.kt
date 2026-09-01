@@ -1,5 +1,6 @@
 package com.rasheed113.worksocial.infrastructure.calls
 
+import com.rasheed113.worksocial.BuildConfig
 import com.rasheed113.worksocial.domain.calls.CallKind
 import com.rasheed113.worksocial.domain.calls.CallPeer
 import com.rasheed113.worksocial.domain.calls.CallRepository
@@ -26,6 +27,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.net.HttpURLConnection
+import java.net.URI
 
 @Serializable
 private data class ProfileRow(val id: String, val display_name: String? = null, val username: String? = null, val avatar_url: String? = null)
@@ -56,10 +59,48 @@ class SupabaseCallRepository(private val postgrest: Postgrest, private val auth:
             signal.candidate?.let { value -> put("candidate", buildJsonObject { value.sdpMid?.let { put("sdpMid", it) }; put("sdpMLineIndex", value.sdpMLineIndex); put("candidate", value.candidate) }) }
         }
         postgrest.from("call_signals").insert(payload)
+        if (signal.type == SignalType.OFFER) runCatching { dispatchCallPush(signal.callId) }
     }
 
     override fun observeIncomingSignals(userId: String): Flow<CallSignal> = observe(userId, "recipient_id", userId)
     override fun observeCallSignals(userId: String, callId: String): Flow<CallSignal> = observe(userId, "call_id", callId)
+
+    override suspend fun getIncomingOffer(userId: String, callId: String): Result<CallSignal?> = runCatching {
+        requireUser(userId)
+        if (callId.isBlank()) return@runCatching null
+        postgrest.from("call_signals")
+            .select()
+            {
+                filter {
+                    eq("call_id", callId)
+                    eq("recipient_id", userId)
+                    eq("signal_type", "offer")
+                }
+                limit(1)
+            }
+            .decodeList<CallSignalRow>()
+            .firstOrNull()
+            ?.toModel()
+    }
+
+    private suspend fun dispatchCallPush(callId: String) {
+        val accessToken = auth.currentAccessTokenOrNull() ?: return
+        val endpoint = URI.create(BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/call-push-dispatch").toURL()
+        val connection = endpoint.openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            connection.doOutput = true
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use { it.write("{\"call_id\":\"$callId\"}".toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            if (status !in 200..299) error("Call push dispatch failed with HTTP $status")
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun observe(userId: String, filterColumn: String, filterValue: String): Flow<CallSignal> = callbackFlow {
         if (auth.currentSessionOrNull()?.user?.id != userId) { close(IllegalStateException("Your Work Social session is no longer active. Please sign in again.")); return@callbackFlow }
