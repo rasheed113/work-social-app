@@ -15,12 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.rasheed113.worksocial.domain.work.WorkHouseRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, onExit: () -> Unit) {
+fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, workHouseRepository: WorkHouseRepository, onExit: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val financeViewModel: FinanceViewModel = viewModel(key = "finance-$userId", factory = FinanceViewModelFactory((viewModel as WorkHouseViewModel).repositoryForFinance()))
+    val financeViewModel: FinanceViewModel = viewModel(key = "finance-$userId", factory = FinanceViewModelFactory(workHouseRepository))
     var tab by remember { mutableStateOf("home") }
     LaunchedEffect(userId) { viewModel.load(userId) }
 
