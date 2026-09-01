@@ -16,9 +16,21 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        val supabaseUrl = providers.gradleProperty("supabaseUrl")
-            .orElse(System.getenv("WORK_SOCIAL_SUPABASE_URL") ?: "https://ejpcgcaoqyqjionvtsdi.supabase.co")
-            .get()
+        val canonicalSupabaseUrl = "https://ejpcgcaoqyqjionvtsdi.supabase.co"
+        val gradleSupabaseUrl = providers.gradleProperty("supabaseUrl").orNull?.trim()
+        val environmentSupabaseUrl = System.getenv("WORK_SOCIAL_SUPABASE_URL")?.trim()
+        val supabaseUrlOverride = gradleSupabaseUrl?.takeIf { it.isNotBlank() }
+            ?: environmentSupabaseUrl?.takeIf { it.isNotBlank() }
+        if (supabaseUrlOverride != null && supabaseUrlOverride != canonicalSupabaseUrl) {
+            throw GradleException(
+                "Invalid Work Social Supabase URL override. " +
+                    "Only the canonical production URL is permitted. " +
+                    "Check -PsupabaseUrl, ORG_GRADLE_PROJECT_supabaseUrl, WORK_SOCIAL_SUPABASE_URL, " +
+                    "or ~/.gradle/gradle.properties."
+            )
+        }
+        val supabaseUrl = canonicalSupabaseUrl
+
         val configuredPublishableKey = providers.gradleProperty("supabasePublishableKey")
             .orElse("")
             .get()
