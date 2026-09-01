@@ -80,13 +80,16 @@ class ChatRepository {
     final uniquePaths = paths.toSet().toList();
     final media = <String, String>{};
     if (uniquePaths.isNotEmpty) {
-      final signedUrls = await client.storage
+      final results = await client.storage
           .from('chat-media')
-          .createSignedUrls(uniquePaths, 3600);
-      for (var i = 0; i < signedUrls.length && i < uniquePaths.length; i++) {
-        final signedUrl = signedUrls[i].signedUrl;
-        if (signedUrl != null && signedUrl.isNotEmpty) {
-          media[uniquePaths[i]] = signedUrl;
+          .createSignedUrlsResult(uniquePaths, 3600);
+      for (final result in results) {
+        switch (result) {
+          case SignedUrlSuccess(:final path, :final signedUrl):
+            media[path] = signedUrl;
+          case SignedUrlFailure():
+            // A missing attachment is rendered as an unavailable media card.
+            break;
         }
       }
     }
