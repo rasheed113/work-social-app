@@ -26,7 +26,7 @@ class WorkSocialFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         scope.launch {
             val supabase = SupabaseClientProvider.create()
-            DevicePushTokenRepository(supabase.postgrest, supabase.auth).register(token)
+            DevicePushTokenRepository(supabase).register(token)
             supabase.close()
         }
     }
