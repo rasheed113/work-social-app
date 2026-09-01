@@ -80,10 +80,8 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
         val userId = auth.currentSessionOrNull()?.user?.id ?: return CreatePostResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         val normalizedContent = content.trim()
         if (normalizedContent.isEmpty() && attachments.isEmpty() && location == null) return CreatePostResult.Failure("Post cannot be empty.")
-        val postId = runCatching {
-            postgrest.from("posts").insert(createPostPayload(userId, normalizedContent, location)) { select(columns = Columns.list("id")) }.decodeSingle<CreatedPostDto>().id
-        }.getOrElse { return CreatePostResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to create your post right now.") }
-
+        val postId = runCatching { postgrest.from("posts").insert(createPostPayload(userId, normalizedContent, location)) { select(columns = Columns.list("id")) }.decodeSingle<CreatedPostDto>().id }
+            .getOrElse { return CreatePostResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to create your post right now.") }
         val uploadedPaths = mutableListOf<String>()
         try {
             for (attachment in attachments) {
@@ -95,7 +93,7 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
             }
             return CreatePostResult.Created(postId)
         } catch (error: Throwable) {
-            if (uploadedPaths.isNotEmpty()) runCatching { storage.from("post-media").delete(uploadedPaths) }
+            if (uploadedPaths.isNotEmpty()) runCatching { storage.from("post-media").delete(*uploadedPaths.toTypedArray()) }
             runCatching { postgrest.from("post_attachments").delete { filter { eq("post_id", postId) } } }
             runCatching { postgrest.from("posts").delete { filter { eq("id", postId); eq("profile_id", userId) } } }
             return CreatePostResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "Unable to upload your post media right now.")
