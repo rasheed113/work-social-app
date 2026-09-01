@@ -16,7 +16,10 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "SUPABASE_URL", "\"${providers.gradleProperty("supabaseUrl").orElse(System.getenv("WORK_SOCIAL_SUPABASE_URL") ?: "https://ejpcgcaoqyqjionvtsdi.supabase.co")}\"")
+        val supabaseUrl = providers.gradleProperty("supabaseUrl")
+            .orElse(System.getenv("WORK_SOCIAL_SUPABASE_URL") ?: "https://ejpcgcaoqyqjionvtsdi.supabase.co")
+            .get()
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${providers.gradleProperty("supabasePublishableKey").orElse(System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY") ?: "")}\"")
     }
 
