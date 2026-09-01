@@ -21,6 +21,7 @@ import kotlinx.serialization.json.put
 private data class WorkerIdentity(val id: String, val workId: String, val description: String?, val skills: List<String>)
 private data class WorkRow(val id: String, val item: String, val quantity: String, val rate: String, val total: String, val occurredAt: String)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkHouseScreen(userId: String, onExit: () -> Unit) {
     val app = LocalContext.current.applicationContext as WorkSocialApplication
