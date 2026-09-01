@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_shell.dart';
-import 'theme/app_theme.dart';
+import '../core/design/app_theme.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/chat/presentation/inbox_page.dart';
 
