@@ -1,16 +1,18 @@
 package com.rasheed113.worksocial.infrastructure.notifications
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rasheed113.worksocial.MainActivity
-import com.rasheed113.worksocial.R
 import com.rasheed113.worksocial.infrastructure.supabase.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +43,10 @@ class WorkSocialFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun showIncomingCallNotification(callId: String, conversationId: String, callerId: String, kind: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
         ensureChannel()
         val intent = Intent(this, MainActivity::class.java).apply {
             action = MainActivity.ACTION_INCOMING_CALL
