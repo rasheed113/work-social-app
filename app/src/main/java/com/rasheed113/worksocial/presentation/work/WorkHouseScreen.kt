@@ -14,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, onExit: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val financeViewModel: FinanceViewModel = viewModel(key = "finance-$userId", factory = FinanceViewModelFactory((viewModel as WorkHouseViewModel).repositoryForFinance()))
     var tab by remember { mutableStateOf("home") }
     LaunchedEffect(userId) { viewModel.load(userId) }
 
@@ -41,7 +43,7 @@ fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, onExit: () ->
             }
             is WorkHouseState.Success -> when (tab) {
                 "home" -> WorkHome(current, Modifier.fillMaxSize().padding(padding))
-                "finance" -> WorkFinance(current, Modifier.fillMaxSize().padding(padding))
+                "finance" -> FinanceScreen(financeViewModel, userId, onExit)
                 "history" -> WorkHistory(current, viewModel, Modifier.fillMaxSize().padding(padding))
                 "identity" -> WorkIdentity(current.identity, Modifier.fillMaxSize().padding(padding))
                 else -> WorkSettings(current.identity, onExit, Modifier.fillMaxSize().padding(padding))
@@ -56,14 +58,6 @@ fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, onExit: () ->
     Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Real work totals", style = MaterialTheme.typography.titleMedium)
         Text("Today: ${state.totals.dailyTotal}"); Text("This week: ${state.totals.weeklyTotal}"); Text("This month: ${state.totals.monthlyTotal}"); Text("Lifetime: ${state.totals.lifetimeTotal}")
-    } }
-}
-
-@Composable private fun WorkFinance(state: WorkHouseState.Success, modifier: Modifier) = Column(modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-    Text("Finance", style = MaterialTheme.typography.headlineMedium)
-    val finance = state.finance
-    if (finance == null) Text("No Worker Finance summary is available yet.") else Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Total earnings: ${finance.totalEarnings}"); Text("Received: ${finance.received}"); Text("Remaining: ${finance.remaining}")
     } }
 }
 
