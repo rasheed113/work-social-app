@@ -19,8 +19,11 @@ android {
         val supabaseUrl = providers.gradleProperty("supabaseUrl")
             .orElse(System.getenv("WORK_SOCIAL_SUPABASE_URL") ?: "https://ejpcgcaoqyqjionvtsdi.supabase.co")
             .get()
+        val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
+            .orElse(System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY") ?: "")
+            .get()
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${providers.gradleProperty("supabasePublishableKey").orElse(System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY") ?: "")}\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabasePublishableKey\"")
     }
 
     buildFeatures {
@@ -90,7 +93,7 @@ dependencies {
 
     implementation("com.pexip.webrtc:webrtc:146.0.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
+    implementation("io.coil-kt.coil-network-okhttp:3.6.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
