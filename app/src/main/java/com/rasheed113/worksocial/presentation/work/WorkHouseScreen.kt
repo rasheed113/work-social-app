@@ -55,44 +55,46 @@ fun WorkHouseScreen(viewModel: WorkHouseViewModel, userId: String, workHouseRepo
 }
 
 @Composable
-private fun WorkHome(state: WorkHouseState.Success, viewModel: WorkHouseViewModel, modifier: Modifier, onExit: () -> Unit) = LazyColumn(modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.md), contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)) {
-    item { WorkHouseHeader("Home") }
-    item {
-        WorkSocialCard(premium = true, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(WorkSocialSpacing.lg), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.sm)) {
-                Text("My Work", style = WorkSocialTypography.title)
-                state.identity?.let { Text("Work ID: ${it.workId}"); Text(it.workDescription ?: "No work description has been saved.", color = WorkSocialTypography.MutedText) }
-                    ?: Text("Work Identity is not set up. No placeholder Worker data is shown.", color = WorkSocialTypography.MutedText)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.showHistory() }) { Text("Work History") }
-                    OutlinedButton(onClick = { viewModel.showIdentity() }) { Text("Worker Identity") }
+private fun WorkHome(state: WorkHouseState.Success, viewModel: WorkHouseViewModel, modifier: Modifier, onExit: () -> Unit) {
+    var showHistory by remember { mutableStateOf(false) }
+    var showIdentity by remember { mutableStateOf(false) }
+    LazyColumn(modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.md), contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)) {
+        item { WorkHouseHeader("Home") }
+        item {
+            WorkSocialCard(premium = true, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(WorkSocialSpacing.lg), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.sm)) {
+                    Text("My Work", style = WorkSocialTypography.title)
+                    state.identity?.let { Text("Work ID: ${it.workId}"); Text(it.workDescription ?: "No work description has been saved.", color = WorkSocialTypography.MutedText) }
+                        ?: Text("Work Identity is not set up. No placeholder Worker data is shown.", color = WorkSocialTypography.MutedText)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "Hide History" else "Work History") }
+                        OutlinedButton(onClick = { showIdentity = !showIdentity }) { Text(if (showIdentity) "Hide Identity" else "Worker Identity") }
+                    }
                 }
             }
         }
-    }
-    if (viewModel.showHistoryState) item { WorkHistory(state, viewModel, Modifier.fillMaxWidth()) }
-    if (viewModel.showIdentityState) item { WorkIdentity(state.identity, Modifier.fillMaxWidth()) }
-    item {
-        WorkSocialCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(WorkSocialSpacing.lg), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.sm)) {
-                Text("Real work totals", style = WorkSocialTypography.title)
-                Text("Today: ${state.totals.dailyTotal}")
-                Text("This week: ${state.totals.weeklyTotal}")
-                Text("This month: ${state.totals.monthlyTotal}")
-                Text("Lifetime: ${state.totals.lifetimeTotal}")
+        if (showHistory) item { WorkHistory(state, viewModel, Modifier.fillMaxWidth()) }
+        if (showIdentity) item { WorkIdentity(state.identity, Modifier.fillMaxWidth()) }
+        item {
+            WorkSocialCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(WorkSocialSpacing.lg), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.sm)) {
+                    Text("Real work totals", style = WorkSocialTypography.title)
+                    Text("Today: ${state.totals.dailyTotal}")
+                    Text("This week: ${state.totals.weeklyTotal}")
+                    Text("This month: ${state.totals.monthlyTotal}")
+                    Text("Lifetime: ${state.totals.lifetimeTotal}")
+                }
             }
         }
+        item { TextButton(onClick = onExit) { Text("Back to Social") } }
     }
-    item { TextButton(onClick = onExit) { Text("Back to Social") } }
 }
 
 @Composable
 private fun WorkHistory(state: WorkHouseState.Success, viewModel: WorkHouseViewModel, modifier: Modifier) = Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Text("Work History", style = WorkSocialTypography.title)
     if (state.history.isEmpty()) Text("No active work entries were returned. This is a real empty state, not seeded data.")
-    else state.history.forEach { row ->
-        WorkSocialCard(modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(row.itemName, style = WorkSocialTypography.label); Text("${row.quantity} × ${row.rate} = ${row.total}"); Text(row.occurredAt, style = WorkSocialTypography.body) } }
-    }
+    else state.history.forEach { row -> WorkSocialCard(modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(row.itemName, style = WorkSocialTypography.label); Text("${row.quantity} × ${row.rate} = ${row.total}"); Text(row.occurredAt, style = WorkSocialTypography.body) } } }
     if (state.hasMoreHistory) Button(onClick = viewModel::loadMoreHistory, enabled = !state.loadingMoreHistory, modifier = Modifier.fillMaxWidth()) { if (state.loadingMoreHistory) CircularProgressIndicator(strokeWidth = 2.dp) else Text("Load more") }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 }
