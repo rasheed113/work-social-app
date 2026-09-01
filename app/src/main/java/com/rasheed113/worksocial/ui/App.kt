@@ -35,6 +35,7 @@ import com.rasheed113.worksocial.presentation.chat.ChatViewModelFactory
 import com.rasheed113.worksocial.presentation.friends.*
 import com.rasheed113.worksocial.presentation.navigation.AppDestination
 import com.rasheed113.worksocial.presentation.profile.ProfileScreen
+import com.rasheed113.worksocial.presentation.profile.ProfileSettingsScreen
 import com.rasheed113.worksocial.presentation.social.*
 import com.rasheed113.worksocial.presentation.work.WorkHouseScreen
 import com.rasheed113.worksocial.presentation.work.WorkHouseViewModel
@@ -84,21 +85,33 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val isWorkHouse = currentRoute == AppDestination.WorkHouse.route
     val isCreatePost = currentRoute == AppDestination.CreatePost.route
+    val isProfileSettings = currentRoute == AppDestination.ProfileSettings.route
     val unreadCount = (activityState as? ActivityState.Success)?.unreadCount ?: 0
-    val topTitle = when (currentRoute) { AppDestination.Inbox.route -> "Inbox"; AppDestination.Friends.route -> "Friends"; AppDestination.Profile.route, AppDestination.PublicProfile.route -> "Profile"; AppDestination.WorkHouse.route -> "Work House"; else -> "Work Social" }
-    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost && !isWorkHouse) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Box(Modifier.weight(1f)) { AppTopBar(topTitle) }; TextButton(onClick = { navController.navigate(AppDestination.WorkHouse.route) { launchSingleTop = true } }) { Text("Work House") } } }, bottomBar = { if (!isCreatePost && !isWorkHouse) NavigationBar { destinations.forEach { destination -> NavigationBarItem(selected = currentRoute == destination.route, onClick = { navController.navigate(destination.route) { launchSingleTop = true; popUpTo(AppDestination.Social.route) { saveState = true }; restoreState = true } }, icon = { when (destination) { AppDestination.Activity -> if (unreadCount > 0) BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") } else Text("♢"); AppDestination.Social -> Text("⌂"); AppDestination.Inbox -> Text("✉"); AppDestination.Friends -> Text("♧"); AppDestination.Profile, AppDestination.PublicProfile -> Text("◉"); AppDestination.WorkHouse, AppDestination.CreatePost -> Text("＋") } }, label = { Text(destination.label) }) } } }) { padding ->
+    val topTitle = when (currentRoute) { AppDestination.Inbox.route -> "Inbox"; AppDestination.Friends.route -> "Friends"; AppDestination.Profile.route, AppDestination.PublicProfile.route -> "Profile"; AppDestination.ProfileSettings.route -> "Profile Settings"; AppDestination.WorkHouse.route -> "Work House"; else -> "Work Social" }
+    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost && !isWorkHouse) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Box(Modifier.weight(1f)) { AppTopBar(topTitle) }; if (!isProfileSettings) TextButton(onClick = { navController.navigate(AppDestination.WorkHouse.route) { launchSingleTop = true } }) { Text("Work House") } } }, bottomBar = { if (!isCreatePost && !isWorkHouse && !isProfileSettings) NavigationBar { destinations.forEach { destination -> NavigationBarItem(selected = currentRoute == destination.route, onClick = { navController.navigate(destination.route) { launchSingleTop = true; popUpTo(AppDestination.Social.route) { saveState = true }; restoreState = true } }, icon = { when (destination) { AppDestination.Activity -> if (unreadCount > 0) BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") } else Text("♢"); AppDestination.Social -> Text("⌂"); AppDestination.Inbox -> Text("✉"); AppDestination.Friends -> Text("♧"); AppDestination.Profile, AppDestination.PublicProfile -> Text("◉"); AppDestination.ProfileSettings, AppDestination.WorkHouse, AppDestination.CreatePost -> Text("＋") } }, label = { Text(destination.label) }) } } }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             NavHost(navController = navController, startDestination = AppDestination.Social.route, modifier = Modifier.fillMaxSize()) {
                 composable(AppDestination.Social.route) { val target = socialNotificationTarget; SocialHomeScreen(repository = socialPostRepository, refreshToken = socialRefreshToken, targetPostId = target?.postId, targetCommentId = target?.commentId, onTargetConsumed = { socialNotificationTarget = null }, onCreatePost = { navController.navigate(AppDestination.CreatePost.route) }) }
                 composable(AppDestination.Inbox.route) { ChatScreen(userId, chatViewModel, callViewModel) }
                 composable(AppDestination.Friends.route) { FriendsScreen(friendsViewModel, onOpenProfile = { profileId -> navController.navigate("profile/${Uri.encode(profileId)}") }) }
                 composable(AppDestination.Activity.route) { ActivityScreen(viewModel = activityViewModel, onOpenPost = { postId, commentId -> socialNotificationTarget = SocialNotificationTarget(postId, commentId); navController.navigate(AppDestination.Social.route) { launchSingleTop = true } }) }
-                composable(AppDestination.Profile.route) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null) }
+                composable(AppDestination.Profile.route) { Column(Modifier.fillMaxSize()) { Box(Modifier.weight(1f)) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null) }; ProfileAccountActions(onSettings = { navController.navigate(AppDestination.ProfileSettings.route) }, onSignOut = viewModel::signOut) } }
+                composable(AppDestination.ProfileSettings.route) { ProfileSettingsScreen(onBack = { navController.popBackStack() }) }
                 composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry -> ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId")) }
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
                 composable(AppDestination.WorkHouse.route) { WorkHouseScreen(workHouseViewModel, userId, workHouseRepository, onExit = { navController.popBackStack() }) }
             }
             CallHost(callViewModel)
+        }
+    }
+}
+
+@Composable private fun ProfileAccountActions(onSettings: () -> Unit, onSignOut: () -> Unit) {
+    WorkSocialCard(premium = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Account", style = WorkSocialTypography.label, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = onSettings) { Text("Settings") }
+            TextButton(onClick = onSignOut) { Text("Sign out", color = WorkSocialColors.Error) }
         }
     }
 }
