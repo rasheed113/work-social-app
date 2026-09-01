@@ -93,8 +93,8 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
                 composable(AppDestination.Inbox.route) { ChatScreen(userId, chatViewModel, callViewModel) }
                 composable(AppDestination.Friends.route) { FriendsScreen(friendsViewModel, onOpenProfile = { profileId -> navController.navigate("profile/${Uri.encode(profileId)}") }) }
                 composable(AppDestination.Activity.route) { ActivityScreen(viewModel = activityViewModel, onOpenPost = { postId, commentId -> socialNotificationTarget = SocialNotificationTarget(postId, commentId); navController.navigate(AppDestination.Social.route) { launchSingleTop = true } }) }
-                composable(AppDestination.Profile.route) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null, onSignOut = viewModel::signOut) }
-                composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry -> ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId"), onSignOut = viewModel::signOut) }
+                composable(AppDestination.Profile.route) { ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, null) }
+                composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry -> ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId")) }
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
                 composable(AppDestination.WorkHouse.route) { WorkHouseScreen(workHouseViewModel, userId, workHouseRepository, onExit = { navController.popBackStack() }) }
             }
