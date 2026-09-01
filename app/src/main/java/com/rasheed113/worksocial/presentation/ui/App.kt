@@ -1,4 +1,4 @@
-package com.rasheed113.worksocial
+package com.rasheed113.worksocial.presentation.ui
 
 import android.net.Uri
 import androidx.compose.foundation.layout.*
@@ -86,7 +86,7 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
                 composable(AppDestination.WorkHouse.route) { AuthenticatedSection("Work House", accountState) { accountViewModel.retry(userId) } }
             }
-            if (!isCreatePost) { HorizontalDivider(); Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) { TextButton(onClick = viewModel::signOut) { Text("Sign out") } } }
+            if (!isCreatePost) { HorizontalDivider(); Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) { TextButton(onClick = viewModel::signOut) { Text("Sign out") } }
         }
     }
 }
