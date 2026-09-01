@@ -75,7 +75,6 @@ android {
             isMinifyEnabled = false
         }
         debug {
-            versionNameSuffix = "-debug"
         }
     }
 }
@@ -109,7 +108,7 @@ dependencies {
 
     implementation("com.pexip.webrtc:webrtc:146.0.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
+    implementation("io.coil-kt.coil-network-okhttp:3.6.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
