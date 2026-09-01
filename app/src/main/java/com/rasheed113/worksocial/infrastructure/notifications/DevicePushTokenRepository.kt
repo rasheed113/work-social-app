@@ -4,6 +4,7 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.time.Instant
 
 class DevicePushTokenRepository(
     private val postgrest: Postgrest,
@@ -12,13 +13,15 @@ class DevicePushTokenRepository(
     suspend fun register(token: String): Result<Unit> = runCatching {
         val userId = auth.currentUserOrNull()?.id ?: error("No authenticated Work Social user is available for FCM registration.")
         require(token.isNotBlank())
+        val now = Instant.now().toString()
         val payload = buildJsonObject {
             put("profile_id", userId)
             put("platform", "android")
             put("provider", "fcm")
             put("token", token)
-            put("last_seen_at", "now()")
-            put("revoked_at", null as String?)
+            put("updated_at", now)
+            put("last_seen_at", now)
+            put("revoked_at", null)
         }
         postgrest.from("device_push_tokens").upsert(payload, onConflict = "token")
     }
