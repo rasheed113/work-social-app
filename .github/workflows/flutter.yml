@@ -22,8 +22,7 @@ jobs:
           from pathlib import Path
           for f in [Path('android/app/build.gradle'), Path('android/app/build.gradle.kts'), Path('android/app/src/main/AndroidManifest.xml')]:
               if f.exists():
-                  s=f.read_text()
-                  s=s.replace('com.example.work_social_app','com.rasheed113.worksocial')
+                  s=f.read_text().replace('com.example.work_social_app','com.rasheed113.worksocial')
                   f.write_text(s)
           PY
       - name: Flutter pub get
