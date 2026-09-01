@@ -51,4 +51,14 @@ interface WorkHouseRepository {
     suspend fun getWorkerWorkTotals(): WorkerWorkTotals
     suspend fun getWorkerHistory(limit: Int, cursor: WorkHistoryCursor? = null): WorkHistoryPage
     suspend fun getWorkerFinanceSummary(): WorkerFinanceSummary?
+    suspend fun getWorkerFinanceHistory(
+        profileId: String,
+        filter: FinanceHistoryFilter,
+        limit: Int,
+        cursors: FinanceHistoryCursors,
+    ): FinanceHistoryPage
+    suspend fun addFinanceReceived(profileId: String, type: FinanceReceivedType, amount: String)
+    suspend fun editFinanceReceived(profileId: String, id: String, type: FinanceReceivedType, amount: String)
+    suspend fun softDeleteFinanceReceived(profileId: String, id: String)
+    suspend fun restoreFinanceReceived(profileId: String, id: String)
 }
