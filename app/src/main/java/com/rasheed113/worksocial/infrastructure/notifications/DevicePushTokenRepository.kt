@@ -1,34 +1,38 @@
 package com.rasheed113.worksocial.infrastructure.notifications
 
-import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.postgrest.Postgrest
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
 
 class DevicePushTokenRepository(
-    private val supabase: SupabaseClient,
+    private val postgrest: Postgrest,
+    private val auth: Auth,
 ) {
     suspend fun register(token: String): Result<Unit> = runCatching {
-        val userId = supabase.auth.currentUserOrNull()?.id
+        val userId = auth.currentSessionOrNull()?.user?.id
             ?: error("No authenticated Work Social user is available for FCM registration.")
         require(token.isNotBlank())
 
         val now = Instant.now().toString()
-        val payload = DevicePushTokenPayload(
-            profileId = userId,
-            platform = "android",
-            provider = "fcm",
-            token = token,
-            updatedAt = now,
-            lastSeenAt = now,
-            revokedAt = null,
+        postgrest.from("device_push_tokens").upsert(
+            DevicePushTokenPayload(
+                profileId = userId,
+                platform = "android",
+                provider = "fcm",
+                token = token,
+                updatedAt = now,
+                lastSeenAt = now,
+                revokedAt = null,
+            ),
+            onConflict = "token",
         )
-
-        supabase.from("device_push_tokens").upsert(payload, onConflict = "token")
     }
 
     suspend fun unregister(token: String): Result<Unit> = runCatching {
-        val userId = supabase.auth.currentUserOrNull()?.id ?: return@runCatching
-        supabase.from("device_push_tokens").delete {
+        val userId = auth.currentSessionOrNull()?.user?.id ?: return@runCatching
+        postgrest.from("device_push_tokens").delete {
             filter {
                 eq("profile_id", userId)
                 eq("token", token)
@@ -39,11 +43,11 @@ class DevicePushTokenRepository(
 
 @Serializable
 private data class DevicePushTokenPayload(
-    val profileId: String,
+    @SerialName("profile_id") val profileId: String,
     val platform: String,
     val provider: String,
     val token: String,
-    val updatedAt: String,
-    val lastSeenAt: String,
-    val revokedAt: String?,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("last_seen_at") val lastSeenAt: String,
+    @SerialName("revoked_at") val revokedAt: String?,
 )
