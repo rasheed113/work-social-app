@@ -64,8 +64,8 @@ private fun WorkHome(state: WorkHouseState.Success, viewModel: WorkHouseViewMode
             WorkSocialCard(premium = true, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(WorkSocialSpacing.lg), verticalArrangement = Arrangement.spacedBy(WorkSocialSpacing.sm)) {
                     Text("My Work", style = WorkSocialTypography.title)
-                    state.identity?.let { Text("Work ID: ${it.workId}"); Text(it.workDescription ?: "No work description has been saved.", color = WorkSocialTypography.MutedText) }
-                        ?: Text("Work Identity is not set up. No placeholder Worker data is shown.", color = WorkSocialTypography.MutedText)
+                    state.identity?.let { Text("Work ID: ${it.workId}"); Text(it.workDescription ?: "No work description has been saved.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        ?: Text("Work Identity is not set up. No placeholder Worker data is shown.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "Hide History" else "Work History") }
                         OutlinedButton(onClick = { showIdentity = !showIdentity }) { Text(if (showIdentity) "Hide Identity" else "Worker Identity") }
