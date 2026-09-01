@@ -29,7 +29,7 @@ class _AppShellState extends State<AppShell> {
           height: 56,
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .98),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppTheme.border),
             boxShadow: const [BoxShadow(blurRadius: 24, offset: Offset(0, 10), color: Color(0x3D0F172A))],
@@ -49,18 +49,13 @@ class _Destination extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(13),
-          onTap: onTap,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 18, color: selected ? AppTheme.brand : AppTheme.textSecondary),
-            const SizedBox(height: 1),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: selected ? AppTheme.brand : AppTheme.textSecondary)),
-          ]),
-        ),
-      );
+  Widget build(BuildContext context) => Semantics(button: true, selected: selected, label: label, child: InkWell(
+    borderRadius: BorderRadius.circular(13),
+    onTap: onTap,
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(icon, size: 18, color: selected ? AppTheme.brand : AppTheme.textSecondary),
+      const SizedBox(height: 1),
+      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: selected ? AppTheme.brand : AppTheme.textSecondary)),
+    ]),
+  ));
 }
