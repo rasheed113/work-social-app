@@ -1,36 +1,27 @@
 package com.rasheed113.worksocial.presentation.chat
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
+import android.content.Intent
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.rasheed113.worksocial.domain.calls.CallKind
+import com.rasheed113.worksocial.domain.chat.ChatContent
 import com.rasheed113.worksocial.domain.chat.ChatRepository
 import com.rasheed113.worksocial.domain.chat.Conversation
+import com.rasheed113.worksocial.domain.chat.MediaDescriptor
+import com.rasheed113.worksocial.infrastructure.chat.ChatMessageMediaParser
 import com.rasheed113.worksocial.platform.calls.CallViewModel
 
 @Composable
@@ -86,7 +77,7 @@ private fun ChatConversation(userId: String, conversation: Conversation, state: 
             items(state.messages, key = { it.id }) { message ->
                 val mine = message.senderId == userId
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-                    Card { Text(if (message.deletedAt != null) "Message deleted" else message.content, modifier = Modifier.padding(12.dp)) }
+                    Card { ChatMessageContent(message.content) }
                 }
             }
         }
@@ -95,4 +86,38 @@ private fun ChatConversation(userId: String, conversation: Conversation, state: 
             Button(onClick = { viewModel.send(userId, conversation.id, draft); setDraft("") }, enabled = draft.trim().isNotEmpty() && !state.sending) { Text("Send") }
         }
     }
+}
+
+@Composable
+private fun ChatMessageContent(rawContent: String) {
+    when (val content = ChatMessageMediaParser.parse(rawContent)) {
+        is ChatContent.Text -> Text(content.value, modifier = Modifier.padding(12.dp))
+        is ChatContent.Media -> MediaContent(content.descriptor)
+    }
+}
+
+@Composable
+private fun MediaContent(media: MediaDescriptor) {
+    val context = LocalContext.current
+    when (media) {
+        is MediaDescriptor.Image -> AsyncImage(model = media.payload, contentDescription = "Chat image", modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 280.dp).padding(6.dp), contentScale = ContentScale.Fit)
+        is MediaDescriptor.Video -> ChatVideo(media.payload)
+        is MediaDescriptor.File -> TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(media.payload))) }, modifier = Modifier.padding(6.dp)) { Text("Open file") }
+    }
+}
+
+@Composable
+private fun ChatVideo(url: String) {
+    val context = LocalContext.current
+    val controller = remember { MediaController(context) }
+    AndroidViewVideo(url, controller)
+}
+
+@Composable
+private fun AndroidViewVideo(url: String, controller: MediaController) {
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { context -> VideoView(context).apply { setMediaController(controller); controller.setAnchorView(this); setVideoPath(url) } },
+        update = { view -> if (view.tag != url) { view.tag = url; view.setVideoPath(url) } },
+        modifier = Modifier.widthIn(max = 300.dp).height(220.dp).padding(6.dp),
+    )
 }
