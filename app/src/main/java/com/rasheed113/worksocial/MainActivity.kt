@@ -20,7 +20,6 @@ import com.rasheed113.worksocial.infrastructure.auth.SupabaseAuthRepository
 import com.rasheed113.worksocial.infrastructure.calls.SupabaseCallRepository
 import com.rasheed113.worksocial.infrastructure.chat.SupabaseChatRepository
 import com.rasheed113.worksocial.infrastructure.friends.SupabaseFriendsRepository
-import com.rasheed113.worksocial.infrastructure.notifications.DevicePushTokenRepository
 import com.rasheed113.worksocial.infrastructure.notifications.FcmRegistrationManager
 import com.rasheed113.worksocial.infrastructure.notifications.WorkSocialFirebaseMessagingService
 import com.rasheed113.worksocial.infrastructure.social.SupabaseSocialPostRepository
@@ -29,12 +28,8 @@ import com.rasheed113.worksocial.platform.calls.WebRtcCallEngine
 import com.rasheed113.worksocial.presentation.auth.AuthViewModel
 import com.rasheed113.worksocial.presentation.auth.AuthViewModelFactory
 import com.rasheed113.worksocial.presentation.ui.WorkSocialApp
-import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.status.SessionStatus
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.realtime.realtime
-import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -49,8 +44,7 @@ class MainActivity : ComponentActivity() {
 
         val supabase = (application as WorkSocialApplication).supabase
         supabase.handleDeeplinks(intent)
-        val devicePushTokenRepository = DevicePushTokenRepository(supabase.postgrest, supabase.auth)
-        val authRepository = SupabaseAuthRepository(supabase.auth, devicePushTokenRepository)
+        val authRepository = SupabaseAuthRepository(supabase.auth, supabase)
         val accountRepository = SupabaseAccountRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val socialPostRepository = SupabaseSocialPostRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val activityRepository = SupabaseActivityRepository(supabase.postgrest, supabase.auth, supabase.realtime)
