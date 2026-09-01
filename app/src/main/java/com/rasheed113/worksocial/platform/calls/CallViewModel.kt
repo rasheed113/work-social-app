@@ -68,6 +68,15 @@ class CallViewModel(private val userId: String, private val repository: CallRepo
         incomingJob = viewModelScope.launch { repository.observeIncomingSignals(userId).collect { signal -> if (seenSignals.add(signal.id)) handleSignal(signal) } }
     }
 
+    fun resumeIncomingCall(callId: String) {
+        if (_state.value.session != null || callId.isBlank()) return
+        viewModelScope.launch {
+            repository.getIncomingOffer(userId, callId).getOrNull()?.let { signal ->
+                if (seenSignals.add(signal.id)) handleSignal(signal)
+            }
+        }
+    }
+
     fun startOutgoing(conversationId: String, peer: CallPeer, kind: CallKind) {
         if (_state.value.session != null) return
         val action: suspend () -> Unit = {
