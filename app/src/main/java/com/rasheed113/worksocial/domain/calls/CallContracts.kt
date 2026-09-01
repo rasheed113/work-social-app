@@ -49,6 +49,7 @@ interface CallRepository {
     suspend fun sendSignal(userId: String, signal: OutgoingCallSignal): Result<Unit>
     fun observeIncomingSignals(userId: String): Flow<CallSignal>
     fun observeCallSignals(userId: String, callId: String): Flow<CallSignal>
+    suspend fun getIncomingOffer(userId: String, callId: String): Result<CallSignal?>
     suspend fun resolvePeer(userId: String, peerId: String): Result<CallPeer>
 }
 
