@@ -26,8 +26,10 @@ class DevicePushTokenRepository(
                 lastSeenAt = now,
                 revokedAt = null,
             ),
-            onConflict = "token",
-        )
+        ) {
+            onConflict = "token"
+            ignoreDuplicates = false
+        }
     }
 
     suspend fun unregister(token: String): Result<Unit> = runCatching {
