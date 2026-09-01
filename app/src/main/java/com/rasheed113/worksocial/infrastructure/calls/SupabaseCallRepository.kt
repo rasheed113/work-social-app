@@ -10,6 +10,7 @@ import com.rasheed113.worksocial.domain.calls.SignalType
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.channel
@@ -28,10 +29,8 @@ import kotlinx.serialization.json.put
 
 @Serializable
 private data class ProfileRow(val id: String, val display_name: String? = null, val username: String? = null, val avatar_url: String? = null)
-
 @Serializable
 private data class CallSignalRow(val id: String, val call_id: String, val conversation_id: String, val sender_id: String, val recipient_id: String, val kind: String, val signal_type: String, val sdp: JsonObject? = null, val candidate: JsonObject? = null, val created_at: String)
-
 private val rowJson = Json { ignoreUnknownKeys = true }
 
 private fun CallSignalRow.toModel(): CallSignal = CallSignal(
@@ -40,7 +39,7 @@ private fun CallSignalRow.toModel(): CallSignal = CallSignal(
     when (signal_type) { "offer" -> SignalType.OFFER; "answer" -> SignalType.ANSWER; "ice" -> SignalType.ICE; "reject" -> SignalType.REJECT; else -> SignalType.HANGUP },
     sdp?.get("type")?.jsonPrimitive?.content,
     sdp?.get("sdp")?.jsonPrimitive?.content,
-    candidate?.let { IceCandidateData(it["sdpMid"]?.jsonPrimitive?.content, it["sdpMLineIndex"]?.jsonPrimitive?.int ?: 0, it["candidate"]?.jsonPrimitive?.content.orEmpty()) },
+    candidate?.let { IceCandidateData(it["sdpMid"]?.jsonPrimitive?.content, it["sdpMLineIndex"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0, it["candidate"]?.jsonPrimitive?.content.orEmpty()) },
     created_at
 )
 
@@ -68,7 +67,7 @@ class SupabaseCallRepository(private val postgrest: Postgrest, private val auth:
         val job = launch {
             channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
                 table = "call_signals"
-                filter(filterColumn, io.github.jan.supabase.realtime.filter.FilterOperator.EQ, filterValue)
+                filter(filterColumn, FilterOperator.EQ, filterValue)
             }.collect { action ->
                 val row = rowJson.decodeFromJsonElement(CallSignalRow.serializer(), action.record)
                 if (row.sender_id != userId && row.recipient_id == userId) trySend(row.toModel()).isSuccess
