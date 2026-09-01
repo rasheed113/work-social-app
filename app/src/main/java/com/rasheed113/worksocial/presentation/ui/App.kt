@@ -22,6 +22,7 @@ import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import com.rasheed113.worksocial.infrastructure.calls.SupabaseCallRepository
 import com.rasheed113.worksocial.platform.calls.CallViewModel
 import com.rasheed113.worksocial.platform.calls.CallViewModelFactory
+import com.rasheed113.worksocial.platform.calls.PendingIncomingCallStore
 import com.rasheed113.worksocial.platform.calls.WebRtcCallEngine
 import com.rasheed113.worksocial.presentation.account.*
 import com.rasheed113.worksocial.presentation.activity.*
@@ -40,12 +41,13 @@ data class SocialNotificationTarget(val postId: String, val commentId: String?)
 @Composable
 fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, callEngine: WebRtcCallEngine) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingIncomingCallId by PendingIncomingCallStore.callId.collectAsStateWithLifecycle()
     WorkSocialTheme {
         when (val auth = state.auth) {
             AuthState.Initializing -> LoadingScreen()
             AuthState.SignedOut -> AuthScreen(state, viewModel)
             is AuthState.Error -> AuthScreen(state, viewModel)
-            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, callEngine)
+            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, callEngine, pendingIncomingCallId)
         }
     }
 }
@@ -69,12 +71,18 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
     }
 }
 
-@Composable private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, callEngine: WebRtcCallEngine) {
+@Composable private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, callEngine: WebRtcCallEngine, pendingIncomingCallId: String?) {
     val navController = rememberNavController(); var socialRefreshToken by remember { mutableIntStateOf(0) }; var socialNotificationTarget by remember { mutableStateOf<SocialNotificationTarget?>(null) }
     val accountViewModel: AccountViewModel = viewModel(key = "account-$userId", factory = AccountViewModelFactory(accountRepository)); val accountState by accountViewModel.state.collectAsStateWithLifecycle()
     val activityViewModel: ActivityViewModel = viewModel(key = "activity-$userId", factory = ActivityViewModelFactory(activityRepository)); val activityState by activityViewModel.state.collectAsStateWithLifecycle()
     val friendsViewModel: FriendsViewModel = viewModel(key = "friends-$userId", factory = FriendsViewModelFactory(friendsRepository)); val chatViewModel: ChatViewModel = viewModel(key = "chat-$userId", factory = ChatViewModelFactory(chatRepository)); val callViewModel: CallViewModel = viewModel(key = "calls-$userId", factory = CallViewModelFactory(userId, callRepository, callEngine, androidx.compose.ui.platform.LocalContext.current))
     LaunchedEffect(userId) { accountViewModel.load(userId); chatViewModel.load(userId) }
+    LaunchedEffect(userId, pendingIncomingCallId) {
+        pendingIncomingCallId?.takeIf { it.isNotBlank() }?.let {
+            callViewModel.resumeIncomingCall(it)
+            PendingIncomingCallStore.clear(it)
+        }
+    }
     val destinations = listOf(AppDestination.Social, AppDestination.Inbox, AppDestination.Friends, AppDestination.Activity, AppDestination.Profile, AppDestination.WorkHouse)
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route; val isCreatePost = currentRoute == AppDestination.CreatePost.route
     val unreadCount = (activityState as? ActivityState.Success)?.unreadCount ?: 0
