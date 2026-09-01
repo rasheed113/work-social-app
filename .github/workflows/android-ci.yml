@@ -29,7 +29,24 @@ jobs:
           gradle-version: '9.6.1'
 
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Verify effective Supabase URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_config="$(find app/build/generated -type f -path '*debug*' -name 'BuildConfig.java' -print -quit)"
+          if [[ -z "$build_config" ]]; then
+            echo "Supabase URL verification failed: generated BuildConfig.java not found."
+            exit 1
+          fi
+          expected='https://ejpcgcaoqyqjionvtsdi.supabase.co'
+          actual="$(sed -n 's/.*SUPABASE_URL = "\(.*\)";.*/\1/p' "$build_config")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Supabase URL verification failed: effective BuildConfig.SUPABASE_URL does not exactly match the expected URL."
+            exit 1
+          fi
+          echo "Supabase URL verification passed: BuildConfig.SUPABASE_URL matches the expected URL exactly."
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
