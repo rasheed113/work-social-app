@@ -29,38 +29,14 @@ jobs:
         run: |
           set -euo pipefail
           for name in WORK_SOCIAL_SUPABASE_URL ORG_GRADLE_PROJECT_supabaseUrl; do
-            if [[ -v "$name" && -n "${!name}" ]]; then
-              echo "$name=present"
-            else
-              echo "$name=absent"
-            fi
+            if [[ -v "$name" && -n "${!name}" ]]; then echo "$name=present"; else echo "$name=absent"; fi
           done
-          if [[ -v WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY && -n "$WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY" ]]; then
-            echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=present"
-          else
-            echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=absent (Gradle public fallback will be used)"
-          fi
-          if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabaseUrl[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then
-            echo "user-gradle-properties:supabaseUrl=present"
-          else
-            echo "user-gradle-properties:supabaseUrl=absent"
-          fi
-          if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabasePublishableKey[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then
-            echo "user-gradle-properties:supabasePublishableKey=present"
-          else
-            echo "user-gradle-properties:supabasePublishableKey=absent"
-          fi
+          if [[ -v WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY && -n "$WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY" ]]; then echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=present"; else echo "WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY=absent (Gradle public fallback will be used)"; fi
+          if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabaseUrl[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then echo "user-gradle-properties:supabaseUrl=present"; else echo "user-gradle-properties:supabaseUrl=absent"; fi
+          if [[ -f "$HOME/.gradle/gradle.properties" ]] && grep -Eq '^supabasePublishableKey[[:space:]]*=' "$HOME/.gradle/gradle.properties"; then echo "user-gradle-properties:supabasePublishableKey=present"; else echo "user-gradle-properties:supabasePublishableKey=absent"; fi
           if [[ -f "local.properties" ]]; then
-            if grep -Eq '(^|[[:space:]])supabaseUrl[[:space:]]*=' local.properties; then
-              echo "local.properties:supabaseUrl=present"
-            else
-              echo "local.properties:supabaseUrl=absent"
-            fi
-            if grep -Eq '(^|[[:space:]])supabasePublishableKey[[:space:]]*=' local.properties; then
-              echo "local.properties:supabasePublishableKey=present"
-            else
-              echo "local.properties:supabasePublishableKey=absent"
-            fi
+            if grep -Eq '(^|[[:space:]])supabaseUrl[[:space:]]*=' local.properties; then echo "local.properties:supabaseUrl=present"; else echo "local.properties:supabaseUrl=absent"; fi
+            if grep -Eq '(^|[[:space:]])supabasePublishableKey[[:space:]]*=' local.properties; then echo "local.properties:supabasePublishableKey=present"; else echo "local.properties:supabasePublishableKey=absent"; fi
           else
             echo "local.properties:file=absent"
           fi
@@ -93,6 +69,27 @@ jobs:
           fi
           echo "Regression test passed: malformed Supabase URL override is rejected before APK generation."
 
+      # Development validation intentionally runs before the release-signing gate.
+      - name: Run unit tests
+        run: gradle --no-daemon testReleaseUnitTest
+
+      - name: Build debug APK for development validation
+        run: gradle --no-daemon assembleDebug
+
+      - name: Verify debug package and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/debug/app-debug.apk'
+          test -f "$apk"
+          aapt2="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt2 | sort -V | tail -1)"
+          test -n "$aapt2"
+          badging="$($aapt2 dump badging "$apk")"
+          grep -Fq "package: name='com.rasheed113.worksocial'" <<<"$badging"
+          grep -Fq "versionCode='2'" <<<"$badging"
+          grep -Fq "versionName='1.1.0'" <<<"$badging"
+          echo "Development APK verification passed: package com.rasheed113.worksocial; versionCode 2; versionName 1.1.0."
+
       - name: Prepare update-compatible signing key
         shell: bash
         run: |
@@ -118,87 +115,39 @@ jobs:
         run: |
           set -euo pipefail
           build_config="$(find app/build/generated -type f -path '*release*' -name 'BuildConfig.java' -print -quit)"
-          if [[ -z "$build_config" ]]; then
-            echo "Supabase verification failed: generated release BuildConfig.java not found."
-            exit 1
-          fi
-
+          test -n "$build_config"
           expected='https://ejpcgcaoqyqjionvtsdi.supabase.co'
           actual_url="$(sed -n 's/.*SUPABASE_URL = "\(.*\)";.*/\1/p' "$build_config")"
-          if [[ "$actual_url" != "$expected" ]]; then
-            echo "Supabase URL verification failed: BuildConfig.SUPABASE_URL is not the exact expected URL."
-            exit 1
-          fi
-
-          if ! grep -Eq 'SUPABASE_PUBLISHABLE_KEY = "[^"]+";' "$build_config"; then
-            echo "Supabase API-key verification failed: BuildConfig.SUPABASE_PUBLISHABLE_KEY is empty."
-            exit 1
-          fi
-          if grep -Fq 'SUPABASE_PUBLISHABLE_KEY = "or(provider(?), fixed())";' "$build_config"; then
-            echo "Supabase API-key verification failed: Gradle Provider.toString() leaked into BuildConfig."
-            exit 1
-          fi
-          echo "BuildConfig verification passed: URL exact; publishable key present and evaluated."
+          [[ "$actual_url" == "$expected" ]]
+          grep -Eq 'SUPABASE_PUBLISHABLE_KEY = "[^"]+";' "$build_config"
+          ! grep -Fq 'SUPABASE_PUBLISHABLE_KEY = "or(provider(?), fixed())";' "$build_config"
 
           apk='app/build/outputs/apk/release/app-release.apk'
-          if [[ ! -f "$apk" ]]; then
-            echo "APK verification failed: $apk not found."
-            exit 1
-          fi
-
+          test -f "$apk"
           aapt2="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt2 | sort -V | tail -1)"
-          if [[ -z "$aapt2" ]]; then
-            echo "APK identity verification failed: aapt2 not found."
-            exit 1
-          fi
           badging="$($aapt2 dump badging "$apk")"
           grep -Fq "package: name='com.rasheed113.worksocial'" <<<"$badging"
           grep -Fq "versionCode='2'" <<<"$badging"
           grep -Fq "versionName='1.1.0'" <<<"$badging"
-          echo "APK identity verification passed: package com.rasheed113.worksocial; versionCode 2; versionName 1.1.0."
 
           apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
-          if [[ -z "$apksigner" ]]; then
-            echo "Signing verification failed: apksigner not found."
-            exit 1
-          fi
+          test -n "$apksigner"
           cert_sha256="$($apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]')"
           expected_cert='7ca89034adfc722ed4389f0d9a3d3147f5108cafc767634e5a56fa6e59fe3e32'
-          if [[ "$cert_sha256" != "$expected_cert" ]]; then
-            echo "Signing verification failed: release APK certificate does not match the existing installed application's signing identity."
-            echo "Expected certificate SHA-256: $expected_cert"
-            echo "Actual certificate SHA-256:   $cert_sha256"
-            exit 1
-          fi
-          echo "Signing verification passed: release APK uses the existing application certificate."
+          [[ "$cert_sha256" == "$expected_cert" ]]
+          echo "Release identity verification passed."
 
           url_found=0
           malformed_found=0
           provider_string_found=0
           for dex in $(unzip -Z1 "$apk" | grep -E '^classes([0-9]+)?\.dex$'); do
-            if unzip -p "$apk" "$dex" | strings | grep -Fq "$expected"; then
-              url_found=1
-            fi
-            if unzip -p "$apk" "$dex" | strings | grep -Fq 'ejpcgcaoqyqjionvtsdi.supabase.co))'; then
-              malformed_found=1
-            fi
-            if unzip -p "$apk" "$dex" | strings | grep -Fq 'or(provider(?), fixed())'; then
-              provider_string_found=1
-            fi
+            if unzip -p "$apk" "$dex" | strings | grep -Fq "$expected"; then url_found=1; fi
+            if unzip -p "$apk" "$dex" | strings | grep -Fq 'ejpcgcaoqyqjionvtsdi.supabase.co))'; then malformed_found=1; fi
+            if unzip -p "$apk" "$dex" | strings | grep -Fq 'or(provider(?), fixed())'; then provider_string_found=1; fi
           done
-
-          if [[ "$url_found" -ne 1 ]]; then
-            echo "APK verification failed: expected Supabase URL was not found in DEX strings."
-            exit 1
-          fi
-          if [[ "$malformed_found" -ne 0 ]]; then
-            echo "APK verification failed: malformed Supabase URL is present in the APK."
-            exit 1
-          fi
-          if [[ "$provider_string_found" -ne 0 ]]; then
-            echo "APK verification failed: unresolved Gradle Provider string is present in the APK."
-            exit 1
-          fi
+          [[ "$url_found" -eq 1 ]]
+          [[ "$malformed_found" -eq 0 ]]
+          [[ "$provider_string_found" -eq 0 ]]
           echo "APK verification passed: exact URL present; malformed URL and unresolved Provider string absent."
 
       - name: Upload update-compatible APK
@@ -207,6 +156,3 @@ jobs:
           name: work-social-update-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-
-      - name: Run unit tests
-        run: gradle --no-daemon testReleaseUnitTest
