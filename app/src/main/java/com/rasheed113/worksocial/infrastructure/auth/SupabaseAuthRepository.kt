@@ -1,11 +1,12 @@
 package com.rasheed113.worksocial.infrastructure.auth
 
+import com.google.firebase.messaging.FirebaseMessaging
 import com.rasheed113.worksocial.domain.auth.AuthRepository
 import com.rasheed113.worksocial.domain.auth.AuthState
 import com.rasheed113.worksocial.domain.auth.AuthenticatedIdentity
 import com.rasheed113.worksocial.domain.auth.SignUpOutcome
 import com.rasheed113.worksocial.infrastructure.notifications.DevicePushTokenRepository
-import com.google.firebase.messaging.FirebaseMessaging
+import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -17,7 +18,7 @@ import kotlinx.serialization.json.put
 
 class SupabaseAuthRepository(
     private val auth: Auth,
-    private val devicePushTokenRepository: DevicePushTokenRepository? = null,
+    private val supabase: SupabaseClient? = null,
 ) : AuthRepository {
     override val authState: Flow<AuthState> = auth.sessionStatus.map { status ->
         when (status) {
@@ -49,10 +50,10 @@ class SupabaseAuthRepository(
     }
 
     override suspend fun signOut() {
-        if (devicePushTokenRepository != null && auth.currentUserOrNull() != null) {
+        if (supabase != null && auth.currentUserOrNull() != null) {
             runCatching {
                 val token = FirebaseMessaging.getInstance().token.await()
-                devicePushTokenRepository.unregister(token)
+                DevicePushTokenRepository(supabase).unregister(token).getOrThrow()
             }
         }
         auth.signOut()
