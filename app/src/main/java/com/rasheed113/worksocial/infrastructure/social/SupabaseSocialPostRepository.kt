@@ -24,9 +24,9 @@ import java.util.UUID
 @Serializable internal data class PostAuthorDto(val username: String, val display_name: String, val avatar_url: String? = null)
 @Serializable internal data class PostDto(val id: String, val profile_id: String, val content: String, val privacy: String, val latitude: Double? = null, val longitude: Double? = null, val location_name: String? = null, val created_at: String, val updated_at: String, val profiles: PostAuthorDto? = null)
 @Serializable internal data class PostAttachmentDto(val id: String, val post_id: String, val kind: String, val storage_path: String, val file_name: String? = null, val mime_type: String? = null, val file_size: Long? = null)
-@Serializable internal data class PostReactionDto(val post_id: String, val profile_id: String, val reaction: String)
+@Serializable internal data class PostReactionDto(val post_id: String, val profile_id: String)
 @Serializable internal data class CreatePostPayload(val profile_id: String, val content: String, val latitude: Double? = null, val longitude: Double? = null, val location_name: String? = null)
-@Serializable private data class LikePayload(val post_id: String, val profile_id: String, val reaction: String)
+@Serializable private data class LikePayload(val post_id: String, val profile_id: String)
 @Serializable private data class CreatedPostDto(val id: String)
 @Serializable private data class CreateAttachmentPayload(val post_id: String, val profile_id: String, val kind: String, val storage_path: String, val file_name: String, val mime_type: String?, val file_size: Long)
 @Serializable internal data class CommentAuthorDto(val display_name: String, val avatar_url: String? = null)
@@ -35,8 +35,8 @@ import java.util.UUID
 
 internal fun createPostPayload(authenticatedUserId: String, content: String, location: CreatePostLocation? = null) = CreatePostPayload(authenticatedUserId, content.trim(), location?.latitude, location?.longitude, location?.name)
 internal fun applyLikeState(posts: List<SocialPost>, reactions: List<PostReactionDto>, currentUserId: String): List<SocialPost> {
-    val likesByPost = reactions.asSequence().filter { it.reaction == "like" }.groupingBy(PostReactionDto::post_id).eachCount()
-    val likedByCurrentUser = reactions.asSequence().filter { it.reaction == "like" && it.profile_id == currentUserId }.map(PostReactionDto::post_id).toSet()
+    val likesByPost = reactions.groupingBy(PostReactionDto::post_id).eachCount()
+    val likedByCurrentUser = reactions.asSequence().filter { it.profile_id == currentUserId }.map(PostReactionDto::post_id).toSet()
     return posts.map { it.copy(likeCount = likesByPost[it.id] ?: 0, isLikedByCurrentUser = it.id in likedByCurrentUser) }
 }
 internal fun mapComment(dto: CommentDto, currentUserId: String = ""): SocialComment {
@@ -70,10 +70,10 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
         if (posts.isEmpty()) return emptyList()
         val ids = posts.map(PostDto::id)
         val attachments = postgrest.from("post_attachments").select(columns = Columns.list("id, post_id, kind, storage_path, file_name, mime_type, file_size")) { filter { isIn("post_id", ids) }; order(column = "created_at", order = Order.ASCENDING) }.decodeList<PostAttachmentDto>()
-        val reactions = postgrest.from("post_reactions").select(columns = Columns.list("post_id, profile_id, reaction")) { filter { isIn("post_id", ids) } }.decodeList<PostReactionDto>()
+        val likes = postgrest.from("likes").select(columns = Columns.list("post_id, profile_id")) { filter { isIn("post_id", ids) } }.decodeList<PostReactionDto>()
         val byPost = attachments.groupBy(PostAttachmentDto::post_id)
         val publicUrl: (String) -> String = { storage.from("post-media").publicUrl(it) }
-        return applyLikeState(posts.map { SocialPostMapper.map(it, byPost[it.id].orEmpty(), publicUrl) }, reactions, userId)
+        return applyLikeState(posts.map { SocialPostMapper.map(it, byPost[it.id].orEmpty(), publicUrl) }, likes, userId)
     }
 
     override suspend fun createPost(content: String, attachments: List<CreatePostAttachment>, location: CreatePostLocation?): CreatePostResult {
@@ -99,17 +99,24 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
             return CreatePostResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "Unable to upload your post media right now.")
         }
     }
+
     override suspend fun likePost(postId: String) = setLike(postId, true)
     override suspend fun unlikePost(postId: String) = setLike(postId, false)
+
     private suspend fun setLike(postId: String, liked: Boolean): LikeMutationResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return LikeMutationResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         if (postId.isBlank()) return LikeMutationResult.Failure("Post ID cannot be empty.")
         return runCatching {
-            if (liked) postgrest.from("post_reactions").upsert(LikePayload(postId, userId, "like")) { onConflict = "post_id,profile_id" } else postgrest.from("post_reactions").delete { filter { eq("post_id", postId); eq("profile_id", userId) } }
-            val reactions = postgrest.from("post_reactions").select(columns = Columns.list("post_id, profile_id, reaction")) { filter { eq("post_id", postId) } }.decodeList<PostReactionDto>()
-            LikeMutationResult.Success(reactions.count { it.reaction == "like" }, reactions.any { it.profile_id == userId && it.reaction == "like" })
+            if (liked) {
+                postgrest.from("likes").upsert(LikePayload(postId, userId)) { onConflict = "post_id,profile_id" }
+            } else {
+                postgrest.from("likes").delete { filter { eq("post_id", postId); eq("profile_id", userId) } }
+            }
+            val likes = postgrest.from("likes").select(columns = Columns.list("post_id, profile_id")) { filter { eq("post_id", postId) } }.decodeList<PostReactionDto>()
+            LikeMutationResult.Success(likes.size, likes.any { it.profile_id == userId })
         }.getOrElse { LikeMutationResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to update this like right now.") }
     }
+
     override suspend fun getComments(postId: String): CommentsResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return CommentsResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         if (postId.isBlank()) return CommentsResult.Failure("Post ID cannot be empty.")
@@ -118,6 +125,7 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
             CommentsResult.Success(rows.map { mapComment(it, userId) })
         }.getOrElse { CommentsResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to load comments right now.") }
     }
+
     override suspend fun createComment(postId: String, content: String): CreateCommentResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return CreateCommentResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         val normalized = content.trim()
@@ -125,10 +133,12 @@ class SupabaseSocialPostRepository(private val postgrest: Postgrest, private val
         if (normalized.isEmpty()) return CreateCommentResult.Failure("Comment cannot be empty.")
         return runCatching { CreateCommentResult.Created(postgrest.from("post_comments").insert(CreateCommentPayload(postId, userId, normalized)) { select(columns = Columns.list("id")) }.decodeSingle<CreatedPostDto>().id) }.getOrElse { CreateCommentResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to create your comment right now.") }
     }
+
     override suspend fun deleteComment(commentId: String): DeleteCommentResult {
         val userId = auth.currentSessionOrNull()?.user?.id ?: return DeleteCommentResult.Failure("Your Work Social session is no longer active. Please sign in again.")
         if (commentId.isBlank()) return DeleteCommentResult.Failure("Comment ID cannot be empty.")
         return runCatching { postgrest.from("post_comments").delete { filter { eq("id", commentId); eq("profile_id", userId) } }; DeleteCommentResult.Deleted }.getOrElse { DeleteCommentResult.Failure(it.message?.takeIf(String::isNotBlank) ?: "Unable to delete your comment right now.") }
     }
+
     private fun requireActiveSession(): String = auth.currentSessionOrNull()?.user?.id ?: error("Your Work Social session is no longer active. Please sign in again.")
 }
