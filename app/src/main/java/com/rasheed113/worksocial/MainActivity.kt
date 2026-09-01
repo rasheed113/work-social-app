@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
 
         val supabase = (application as WorkSocialApplication).supabase
         supabase.handleDeeplinks(intent)
-        val authRepository = SupabaseAuthRepository(supabase.auth, supabase)
+        val authRepository = SupabaseAuthRepository(supabase.auth, supabase.postgrest)
         val accountRepository = SupabaseAccountRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val socialPostRepository = SupabaseSocialPostRepository(supabase.postgrest, supabase.auth, supabase.storage)
         val activityRepository = SupabaseActivityRepository(supabase.postgrest, supabase.auth, supabase.realtime)
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 supabase.auth.sessionStatus.collect { status ->
                     if (status is SessionStatus.Authenticated) {
-                        FcmRegistrationManager.sync(supabase)
+                        FcmRegistrationManager.sync(supabase.postgrest, supabase.auth)
                     }
                 }
             }
