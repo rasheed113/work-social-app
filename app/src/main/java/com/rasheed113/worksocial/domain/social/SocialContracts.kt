@@ -31,7 +31,18 @@ sealed interface CommentsResult { data class Success(val comments: List<SocialCo
 interface SocialPostRepository {
     suspend fun getHomePosts(): List<SocialPost>
     suspend fun getProfilePosts(profileId: String) = emptyList<SocialPost>()
-    suspend fun createPost(content: String, attachments: List<CreatePostAttachment> = emptyList(), location: CreatePostLocation? = null): CreatePostResult
+
+    /** Legacy text-only entry point retained for existing repository fakes and callers. */
+    suspend fun createPost(content: String): CreatePostResult =
+        createPost(content, emptyList(), null)
+
+    /** Full Web-aligned Create Post contract. */
+    suspend fun createPost(
+        content: String,
+        attachments: List<CreatePostAttachment> = emptyList(),
+        location: CreatePostLocation? = null,
+    ): CreatePostResult = CreatePostResult.Failure("Create Post is not implemented by this repository.")
+
     suspend fun likePost(postId: String): LikeMutationResult
     suspend fun unlikePost(postId: String): LikeMutationResult
     suspend fun getComments(postId: String): CommentsResult = CommentsResult.Failure("Comments are not implemented by this repository.")
