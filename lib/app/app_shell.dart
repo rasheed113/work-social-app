@@ -38,7 +38,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    index = widget.initialIndex.clamp(0, labels.length - 1);
+    index = widget.initialIndex.clamp(0, labels.length - 1).toInt();
   }
 
   Widget _page() {
