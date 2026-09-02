@@ -20,6 +20,7 @@ import com.rasheed113.worksocial.domain.chat.ChatRepository
 import com.rasheed113.worksocial.domain.friends.FriendsRepository
 import com.rasheed113.worksocial.domain.social.SocialPostRepository
 import com.rasheed113.worksocial.domain.work.WorkHouseRepository
+import com.rasheed113.worksocial.domain.ai.AiRepository
 import com.rasheed113.worksocial.infrastructure.calls.SupabaseCallRepository
 import com.rasheed113.worksocial.platform.calls.CallViewModel
 import com.rasheed113.worksocial.platform.calls.CallViewModelFactory
@@ -27,6 +28,9 @@ import com.rasheed113.worksocial.platform.calls.PendingIncomingCallStore
 import com.rasheed113.worksocial.platform.calls.WebRtcCallEngine
 import com.rasheed113.worksocial.presentation.account.*
 import com.rasheed113.worksocial.presentation.activity.*
+import com.rasheed113.worksocial.presentation.ai.AiScreen
+import com.rasheed113.worksocial.presentation.ai.AiViewModel
+import com.rasheed113.worksocial.presentation.ai.AiViewModelFactory
 import com.rasheed113.worksocial.presentation.auth.*
 import com.rasheed113.worksocial.presentation.calls.CallHost
 import com.rasheed113.worksocial.presentation.chat.ChatScreen
@@ -44,7 +48,7 @@ import com.rasheed113.worksocial.presentation.work.WorkHouseViewModelFactory
 data class SocialNotificationTarget(val postId: String, val commentId: String?)
 
 @Composable
-fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, workHouseRepository: WorkHouseRepository, callEngine: WebRtcCallEngine) {
+fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, workHouseRepository: WorkHouseRepository, callEngine: WebRtcCallEngine, aiRepository: AiRepository) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingIncomingCallId by PendingIncomingCallStore.callId.collectAsStateWithLifecycle()
     WorkSocialTheme {
@@ -52,7 +56,7 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
             AuthState.Initializing -> LoadingScreen()
             AuthState.SignedOut -> AuthScreen(state, viewModel)
             is AuthState.Error -> AuthScreen(state, viewModel)
-            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, workHouseRepository, callEngine, pendingIncomingCallId)
+            is AuthState.SignedIn -> AuthenticatedShell(auth.identity.userId, viewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, workHouseRepository, callEngine, aiRepository, pendingIncomingCallId)
         }
     }
 }
@@ -74,11 +78,11 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
     }
 }
 
-@Composable private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, workHouseRepository: WorkHouseRepository, callEngine: WebRtcCallEngine, pendingIncomingCallId: String?) {
+@Composable private fun AuthenticatedShell(userId: String, viewModel: AuthViewModel, accountRepository: AccountRepository, socialPostRepository: SocialPostRepository, activityRepository: ActivityRepository, friendsRepository: FriendsRepository, chatRepository: ChatRepository, callRepository: SupabaseCallRepository, workHouseRepository: WorkHouseRepository, callEngine: WebRtcCallEngine, aiRepository: AiRepository, pendingIncomingCallId: String?) {
     val navController = rememberNavController(); var socialRefreshToken by remember { mutableIntStateOf(0) }; var socialNotificationTarget by remember { mutableStateOf<SocialNotificationTarget?>(null) }
     val accountViewModel: AccountViewModel = viewModel(key = "account-$userId", factory = AccountViewModelFactory(accountRepository)); val accountState by accountViewModel.state.collectAsStateWithLifecycle()
     val activityViewModel: ActivityViewModel = viewModel(key = "activity-$userId", factory = ActivityViewModelFactory(activityRepository)); val activityState by activityViewModel.state.collectAsStateWithLifecycle()
-    val friendsViewModel: FriendsViewModel = viewModel(key = "friends-$userId", factory = FriendsViewModelFactory(friendsRepository)); val chatViewModel: ChatViewModel = viewModel(key = "chat-$userId", factory = ChatViewModelFactory(chatRepository)); val callViewModel: CallViewModel = viewModel(key = "calls-$userId", factory = CallViewModelFactory(userId, callRepository, callEngine, androidx.compose.ui.platform.LocalContext.current)); val workHouseViewModel: WorkHouseViewModel = viewModel(key = "work-house-$userId", factory = WorkHouseViewModelFactory(workHouseRepository))
+    val friendsViewModel: FriendsViewModel = viewModel(key = "friends-$userId", factory = FriendsViewModelFactory(friendsRepository)); val chatViewModel: ChatViewModel = viewModel(key = "chat-$userId", factory = ChatViewModelFactory(chatRepository)); val callViewModel: CallViewModel = viewModel(key = "calls-$userId", factory = CallViewModelFactory(userId, callRepository, callEngine, androidx.compose.ui.platform.LocalContext.current)); val workHouseViewModel: WorkHouseViewModel = viewModel(key = "work-house-$userId", factory = WorkHouseViewModelFactory(workHouseRepository)); val aiViewModel: AiViewModel = viewModel(key = "ai-$userId", factory = AiViewModelFactory(aiRepository))
     LaunchedEffect(userId) { accountViewModel.load(userId); chatViewModel.load(userId) }
     LaunchedEffect(userId, pendingIncomingCallId) { pendingIncomingCallId?.takeIf { it.isNotBlank() }?.let { callViewModel.resumeIncomingCall(it); PendingIncomingCallStore.clear(it) } }
     val destinations = listOf(AppDestination.Social, AppDestination.Inbox, AppDestination.Friends, AppDestination.Activity, AppDestination.Profile)
@@ -86,9 +90,10 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
     val isWorkHouse = currentRoute == AppDestination.WorkHouse.route
     val isCreatePost = currentRoute == AppDestination.CreatePost.route
     val isProfileSettings = currentRoute == AppDestination.ProfileSettings.route
+    val isAi = currentRoute == AppDestination.Ai.route
     val unreadCount = (activityState as? ActivityState.Success)?.unreadCount ?: 0
-    val topTitle = when (currentRoute) { AppDestination.Inbox.route -> "Inbox"; AppDestination.Friends.route -> "Friends"; AppDestination.Profile.route, AppDestination.PublicProfile.route -> "Profile"; AppDestination.ProfileSettings.route -> "Profile Settings"; AppDestination.WorkHouse.route -> "Work House"; else -> "Work Social" }
-    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost && !isWorkHouse) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Box(Modifier.weight(1f)) { AppTopBar(topTitle) }; if (!isProfileSettings) TextButton(onClick = { navController.navigate(AppDestination.WorkHouse.route) { launchSingleTop = true } }) { Text("Work House") } } }, bottomBar = { if (!isCreatePost && !isWorkHouse && !isProfileSettings) NavigationBar { destinations.forEach { destination -> NavigationBarItem(selected = currentRoute == destination.route, onClick = { navController.navigate(destination.route) { launchSingleTop = true; popUpTo(AppDestination.Social.route) { saveState = true }; restoreState = true } }, icon = { when (destination) { AppDestination.Activity -> if (unreadCount > 0) BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") } else Text("♢"); AppDestination.Social -> Text("⌂"); AppDestination.Inbox -> Text("✉"); AppDestination.Friends -> Text("♧"); AppDestination.Profile, AppDestination.PublicProfile -> Text("◉"); AppDestination.ProfileSettings, AppDestination.WorkHouse, AppDestination.CreatePost -> Text("＋") } }, label = { Text(destination.label) }) } } }) { padding ->
+    val topTitle = when (currentRoute) { AppDestination.Inbox.route -> "Inbox"; AppDestination.Friends.route -> "Friends"; AppDestination.Profile.route, AppDestination.PublicProfile.route -> "Profile"; AppDestination.ProfileSettings.route -> "Profile Settings"; AppDestination.WorkHouse.route -> "Work House"; AppDestination.Ai.route -> "Work Social AI"; else -> "Work Social" }
+    Scaffold(modifier = Modifier.fillMaxSize(), topBar = { if (!isCreatePost && !isWorkHouse && !isAi) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Box(Modifier.weight(1f)) { AppTopBar(topTitle) }; TextButton(onClick = { navController.navigate(AppDestination.Ai.route) { launchSingleTop = true } }) { Text("✨ AI") }; if (!isProfileSettings) TextButton(onClick = { navController.navigate(AppDestination.WorkHouse.route) { launchSingleTop = true } }) { Text("Work House") } } }, bottomBar = { if (!isCreatePost && !isWorkHouse && !isProfileSettings && !isAi) NavigationBar { destinations.forEach { destination -> NavigationBarItem(selected = currentRoute == destination.route, onClick = { navController.navigate(destination.route) { launchSingleTop = true; popUpTo(AppDestination.Social.route) { saveState = true }; restoreState = true } }, icon = { when (destination) { AppDestination.Activity -> if (unreadCount > 0) BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) } }) { Text("♢") } else Text("♢"); AppDestination.Social -> Text("⌂"); AppDestination.Inbox -> Text("✉"); AppDestination.Friends -> Text("♧"); AppDestination.Profile, AppDestination.PublicProfile -> Text("◉"); AppDestination.ProfileSettings, AppDestination.WorkHouse, AppDestination.CreatePost, AppDestination.Ai -> Text("＋") } }, label = { Text(destination.label) }) } } }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             NavHost(navController = navController, startDestination = AppDestination.Social.route, modifier = Modifier.fillMaxSize()) {
                 composable(AppDestination.Social.route) { val target = socialNotificationTarget; SocialHomeScreen(repository = socialPostRepository, refreshToken = socialRefreshToken, targetPostId = target?.postId, targetCommentId = target?.commentId, onTargetConsumed = { socialNotificationTarget = null }, onCreatePost = { navController.navigate(AppDestination.CreatePost.route) }) }
@@ -100,6 +105,7 @@ fun WorkSocialApp(viewModel: AuthViewModel, accountRepository: AccountRepository
                 composable(AppDestination.PublicProfile.route, arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { entry -> ProfileScreen(accountRepository, friendsRepository, socialPostRepository, userId, entry.arguments?.getString("profileId")) }
                 composable(AppDestination.CreatePost.route) { CreatePostScreen(repository = socialPostRepository, onCreated = { socialRefreshToken += 1 }, onBack = { navController.popBackStack() }) }
                 composable(AppDestination.WorkHouse.route) { WorkHouseScreen(workHouseViewModel, userId, workHouseRepository, onExit = { navController.popBackStack() }) }
+                composable(AppDestination.Ai.route) { AiScreen(aiViewModel, onBack = { navController.popBackStack() }) }
             }
             CallHost(callViewModel)
         }
