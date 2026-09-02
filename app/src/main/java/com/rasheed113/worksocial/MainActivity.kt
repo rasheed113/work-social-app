@@ -16,6 +16,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rasheed113.worksocial.infrastructure.account.SupabaseAccountRepository
 import com.rasheed113.worksocial.infrastructure.activity.SupabaseActivityRepository
+import com.rasheed113.worksocial.infrastructure.ai.SupabaseAiRepository
 import com.rasheed113.worksocial.infrastructure.auth.SupabaseAuthRepository
 import com.rasheed113.worksocial.infrastructure.calls.SupabaseCallRepository
 import com.rasheed113.worksocial.infrastructure.chat.SupabaseChatRepository
@@ -58,21 +59,20 @@ class MainActivity : ComponentActivity() {
         val chatRepository = SupabaseChatRepository(supabase.postgrest, supabase.auth, supabase.realtime)
         val callRepository = SupabaseCallRepository(supabase.postgrest, supabase.auth, supabase.realtime)
         val workHouseRepository = SupabaseWorkHouseRepository(supabase.postgrest, supabase.auth)
+        val aiRepository = SupabaseAiRepository(supabase.auth, supabase.postgrest)
         val callEngine = WebRtcCallEngine(applicationContext)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 supabase.auth.sessionStatus.collect { status: SessionStatus ->
-                    if (status is SessionStatus.Authenticated) {
-                        FcmRegistrationManager.sync(supabase.postgrest, supabase.auth)
-                    }
+                    if (status is SessionStatus.Authenticated) FcmRegistrationManager.sync(supabase.postgrest, supabase.auth)
                 }
             }
         }
 
         setContent {
             val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
-            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, workHouseRepository, callEngine)
+            WorkSocialApp(authViewModel, accountRepository, socialPostRepository, activityRepository, friendsRepository, chatRepository, callRepository, workHouseRepository, callEngine, aiRepository)
         }
     }
 
