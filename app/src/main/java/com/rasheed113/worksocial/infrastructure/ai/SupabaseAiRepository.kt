@@ -24,18 +24,14 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 @Serializable
-private data class ChatRequest(
-    val message: String,
-    val conversation_id: String? = null,
-)
+private data class ChatRequest(val message: String, val conversation_id: String? = null)
 
 @Serializable
-private data class ConfirmRequest(
-    val action: String = "confirm",
-    val action_id: String,
-)
+private data class ConfirmRequest(val action: String = "confirm", val action_id: String)
 
 @Serializable
 private data class AiMessageRow(
@@ -95,6 +91,13 @@ class SupabaseAiRepository(
         contentType(ContentType.Application.Json)
         setBody(ConfirmRequest(action_id = actionId))
     }.body()
+
+    override suspend fun cancelAction(actionId: String) {
+        val userId = auth.currentSessionOrNull()?.user?.id ?: error("Your Work Social session is no longer active.")
+        postgrest.from("ai_pending_actions").update(buildJsonObject { put("status", "cancelled") }) {
+            filter { eq("id", actionId); eq("user_id", userId); eq("status", "pending") }
+        }
+    }
 
     private fun bearerToken(): String {
         val token = auth.currentSessionOrNull()?.accessToken
