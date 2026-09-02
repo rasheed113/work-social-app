@@ -22,18 +22,10 @@ android {
         val supabaseUrlOverride = gradleSupabaseUrl?.takeIf { it.isNotBlank() }
             ?: environmentSupabaseUrl?.takeIf { it.isNotBlank() }
         if (supabaseUrlOverride != null && supabaseUrlOverride != canonicalSupabaseUrl) {
-            throw GradleException(
-                "Invalid Work Social Supabase URL override. " +
-                    "Only the canonical production URL is permitted. " +
-                    "Check -PsupabaseUrl, ORG_GRADLE_PROJECT_supabaseUrl, WORK_SOCIAL_SUPABASE_URL, " +
-                    "or ~/.gradle/gradle.properties."
-            )
+            throw GradleException("Invalid Work Social Supabase URL override. Only the canonical production URL is permitted. Check -PsupabaseUrl, ORG_GRADLE_PROJECT_supabaseUrl, WORK_SOCIAL_SUPABASE_URL, or ~/.gradle/gradle.properties.")
         }
         val supabaseUrl = canonicalSupabaseUrl
-
-        val configuredPublishableKey = providers.gradleProperty("supabasePublishableKey")
-            .orElse("")
-            .get()
+        val configuredPublishableKey = providers.gradleProperty("supabasePublishableKey").orElse("").get()
         val envPublishableKey = System.getenv("WORK_SOCIAL_SUPABASE_PUBLISHABLE_KEY")
         val supabasePublishableKey = configuredPublishableKey.takeIf { it.isNotBlank() }
             ?: envPublishableKey?.takeIf { it.isNotBlank() }
@@ -42,16 +34,8 @@ android {
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabasePublishableKey\"")
     }
 
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
+    buildFeatures { compose = true; buildConfig = true }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 
     signingConfigs {
@@ -61,29 +45,14 @@ android {
             val keyAlias = System.getenv("WORK_SOCIAL_KEY_ALIAS")
             val keyPassword = System.getenv("WORK_SOCIAL_KEY_PASSWORD")
             if (!storeFilePath.isNullOrBlank() && !storePassword.isNullOrBlank() && !keyAlias.isNullOrBlank() && !keyPassword.isNullOrBlank()) {
-                storeFile = file(storeFilePath)
-                this.storePassword = storePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
+                storeFile = file(storeFilePath); this.storePassword = storePassword; this.keyAlias = keyAlias; this.keyPassword = keyPassword
             }
         }
     }
-
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-        }
-        debug {
-        }
-    }
+    buildTypes { release { signingConfig = signingConfigs.getByName("release"); isMinifyEnabled = false }; debug { } }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-    }
-}
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21) } }
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
@@ -102,14 +71,14 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:realtime-kt")
     implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:3.5.1")
+    implementation("io.ktor:ktor-client-content-negotiation:3.5.1")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.1")
 
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
     implementation("com.google.firebase:firebase-messaging")
-
     implementation("com.pexip.webrtc:webrtc:146.0.0")
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
-
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
