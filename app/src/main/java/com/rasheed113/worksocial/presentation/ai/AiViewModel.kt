@@ -44,7 +44,7 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
                         messages = history?.messages ?: emptyList(),
                     )
                 }
-                .onFailure { _state.value = AiUiState.Ready(error = it.message ?: "Could not restore AI conversation.") }
+                .onFailure { error -> _state.value = AiUiState.Ready(error = error.message ?: "Could not restore AI conversation.") }
         }
     }
 
@@ -57,8 +57,8 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
             runCatching { repository.sendMessage(current.conversationId, trimmed) }
                 .onSuccess { result ->
                     val now = java.time.Instant.now().toString()
-                    val userMessage = AiMessage("local-user-${now}", "user", trimmed, now)
-                    val assistantMessage = AiMessage("local-assistant-${now}", "assistant", result.message, now)
+                    val userMessage = AiMessage("local-user-$now", "user", trimmed, now)
+                    val assistantMessage = AiMessage("local-assistant-$now", "assistant", result.message, now)
                     ready {
                         it.copy(
                             conversationId = result.conversationId,
@@ -69,7 +69,7 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
                         )
                     }
                 }
-                .onFailure { ready { it.copy(sending = false, error = it.message ?: "AI request failed.") } }
+                .onFailure { error -> ready { state -> state.copy(sending = false, error = error.message ?: "AI request failed.") } }
         }
     }
 
@@ -86,14 +86,14 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
                     }
                     ready {
                         it.copy(
-                            messages = it.messages + AiMessage("local-confirm-${now}", "assistant", text, now),
+                            messages = it.messages + AiMessage("local-confirm-$now", "assistant", text, now),
                             pendingAction = null,
                             confirming = false,
                             error = null,
                         )
                     }
                 }
-                .onFailure { ready { it.copy(confirming = false, error = it.message ?: "Confirmation failed.") } }
+                .onFailure { error -> ready { state -> state.copy(confirming = false, error = error.message ?: "Confirmation failed.") } }
         }
     }
 }
