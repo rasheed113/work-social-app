@@ -10,6 +10,20 @@ data class AiPendingAction(
 )
 
 @Serializable
+data class AiMessage(
+    val id: String,
+    val role: String,
+    val content: String,
+    val createdAt: String,
+)
+
+@Serializable
+data class AiConversationHistory(
+    val conversationId: String,
+    val messages: List<AiMessage> = emptyList(),
+)
+
+@Serializable
 data class AiChatResult(
     val conversationId: String,
     val message: String,
@@ -32,6 +46,7 @@ data class AiConfirmationResult(
 )
 
 interface AiRepository {
+    suspend fun loadHistory(conversationId: String? = null): AiConversationHistory?
     suspend fun sendMessage(conversationId: String?, message: String): AiChatResult
     suspend fun confirmAction(actionId: String): AiConfirmationResult
 }
