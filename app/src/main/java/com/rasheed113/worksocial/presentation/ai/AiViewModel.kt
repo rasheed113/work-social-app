@@ -38,12 +38,7 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
         viewModelScope.launch {
             _state.value = AiUiState.Loading
             runCatching { repository.loadHistory() }
-                .onSuccess { history ->
-                    _state.value = AiUiState.Ready(
-                        conversationId = history?.conversationId,
-                        messages = history?.messages ?: emptyList(),
-                    )
-                }
+                .onSuccess { history -> _state.value = AiUiState.Ready(conversationId = history?.conversationId, messages = history?.messages ?: emptyList()) }
                 .onFailure { error -> _state.value = AiUiState.Ready(error = error.message ?: "Could not restore AI conversation.") }
         }
     }
@@ -57,12 +52,10 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
             runCatching { repository.sendMessage(current.conversationId, trimmed) }
                 .onSuccess { result ->
                     val now = java.time.Instant.now().toString()
-                    val userMessage = AiMessage("local-user-$now", "user", trimmed, now)
-                    val assistantMessage = AiMessage("local-assistant-$now", "assistant", result.message, now)
                     ready {
                         it.copy(
                             conversationId = result.conversationId,
-                            messages = it.messages + userMessage + assistantMessage,
+                            messages = it.messages + AiMessage("local-user-$now", "user", trimmed, now) + AiMessage("local-assistant-$now", "assistant", result.message, now),
                             pendingAction = result.pendingActions.firstOrNull(),
                             sending = false,
                             error = null,
@@ -79,21 +72,18 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
             runCatching { repository.confirmAction(action.id) }
                 .onSuccess { result ->
                     val now = java.time.Instant.now().toString()
-                    val text = if (result.success && result.entry != null) {
-                        "Done 😎 Real entry created: ${result.entry.title ?: result.entry.content}"
-                    } else {
-                        "I couldn't confirm that entry."
-                    }
-                    ready {
-                        it.copy(
-                            messages = it.messages + AiMessage("local-confirm-$now", "assistant", text, now),
-                            pendingAction = null,
-                            confirming = false,
-                            error = null,
-                        )
-                    }
+                    val text = if (result.success && result.entry != null) "Done 😎 Real entry created: ${result.entry.title ?: result.entry.content}" else "I couldn't confirm that entry."
+                    ready { it.copy(messages = it.messages + AiMessage("local-confirm-$now", "assistant", text, now), pendingAction = null, confirming = false, error = null) }
                 }
                 .onFailure { error -> ready { state -> state.copy(confirming = false, error = error.message ?: "Confirmation failed.") } }
+        }
+    }
+
+    fun cancel(action: AiPendingAction) {
+        viewModelScope.launch {
+            runCatching { repository.cancelAction(action.id) }
+                .onSuccess { ready { it.copy(pendingAction = null, error = null) } }
+                .onFailure { error -> ready { state -> state.copy(error = error.message ?: "Could not cancel the action.") } }
         }
     }
 }
