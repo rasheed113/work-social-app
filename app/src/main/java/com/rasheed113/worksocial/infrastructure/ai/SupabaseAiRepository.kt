@@ -4,9 +4,13 @@ import com.rasheed113.worksocial.BuildConfig
 import com.rasheed113.worksocial.domain.ai.AiChatResult
 import com.rasheed113.worksocial.domain.ai.AiConfirmationResult
 import com.rasheed113.worksocial.domain.ai.AiConversationHistory
+import com.rasheed113.worksocial.domain.ai.AiMessage
 import com.rasheed113.worksocial.domain.ai.AiRepository
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.currentSessionOrNull
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.call.body
@@ -22,12 +26,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
-private data class HistoryRequest(
-    val action: String = "history",
-    val conversation_id: String? = null,
-)
-
-@Serializable
 private data class ChatRequest(
     val message: String,
     val conversation_id: String? = null,
@@ -39,10 +37,19 @@ private data class ConfirmRequest(
     val action_id: String,
 )
 
+@Serializable
+private data class AiMessageRow(
+    val id: String,
+    val role: String,
+    val content: String,
+    @kotlinx.serialization.SerialName("created_at") val createdAt: String,
+)
+
 private val json = Json { ignoreUnknownKeys = true }
 
 class SupabaseAiRepository(
     private val auth: Auth,
+    private val postgrest: Postgrest,
 ) : AiRepository {
     private val client = HttpClient(Android) {
         install(ContentNegotiation) { json(json) }
@@ -50,11 +57,32 @@ class SupabaseAiRepository(
 
     private val endpoint = "${BuildConfig.SUPABASE_URL}/functions/v1/work-social-ai"
 
-    override suspend fun loadHistory(conversationId: String?): AiConversationHistory? = client.post(endpoint) {
-        header(HttpHeaders.Authorization, bearerToken())
-        contentType(ContentType.Application.Json)
-        setBody(HistoryRequest(conversation_id = conversationId))
-    }.body()
+    override suspend fun loadHistory(conversationId: String?): AiConversationHistory? {
+        val userId = auth.currentSessionOrNull()?.user?.id ?: return null
+        val conversation = if (conversationId != null) {
+            postgrest.from("ai_conversations").select(columns = Columns.list("id")) {
+                filter { eq("id", conversationId); eq("user_id", userId) }
+                limit(1)
+            }.decodeList<AiConversationIdRow>().firstOrNull()
+        } else {
+            postgrest.from("ai_conversations").select(columns = Columns.list("id")) {
+                filter { eq("user_id", userId); eq("status", "active") }
+                order("updated_at", Order.DESCENDING)
+                limit(1)
+            }.decodeList<AiConversationIdRow>().firstOrNull()
+        } ?: return null
+
+        val rows = postgrest.from("ai_messages").select(columns = Columns.list("id,role,content,created_at")) {
+            filter { eq("conversation_id", conversation.id); eq("user_id", userId) }
+            order("created_at", Order.ASCENDING)
+            limit(100)
+        }.decodeList<AiMessageRow>()
+
+        return AiConversationHistory(
+            conversationId = conversation.id,
+            messages = rows.filter { it.role == "user" || it.role == "assistant" }.map { AiMessage(it.id, it.role, it.content, it.createdAt) },
+        )
+    }
 
     override suspend fun sendMessage(conversationId: String?, message: String): AiChatResult = client.post(endpoint) {
         header(HttpHeaders.Authorization, bearerToken())
@@ -74,3 +102,6 @@ class SupabaseAiRepository(
         return "Bearer $token"
     }
 }
+
+@Serializable
+private data class AiConversationIdRow(val id: String)
