@@ -7,7 +7,6 @@ import com.rasheed113.worksocial.domain.ai.AiConversationHistory
 import com.rasheed113.worksocial.domain.ai.AiMessage
 import com.rasheed113.worksocial.domain.ai.AiRepository
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.currentSessionOrNull
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
@@ -47,10 +46,7 @@ class SupabaseAiRepository(
     private val auth: Auth,
     private val postgrest: Postgrest,
 ) : AiRepository {
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) { json(json) }
-    }
-
+    private val client = HttpClient(Android) { install(ContentNegotiation) { json(json) } }
     private val endpoint = "${BuildConfig.SUPABASE_URL}/functions/v1/work-social-ai"
 
     override suspend fun loadHistory(conversationId: String?): AiConversationHistory? {
@@ -74,10 +70,7 @@ class SupabaseAiRepository(
             limit(100)
         }.decodeList<AiMessageRow>()
 
-        return AiConversationHistory(
-            conversationId = conversation.id,
-            messages = rows.filter { it.role == "user" || it.role == "assistant" }.map { AiMessage(it.id, it.role, it.content, it.createdAt) },
-        )
+        return AiConversationHistory(conversation.id, rows.filter { it.role == "user" || it.role == "assistant" }.map { AiMessage(it.id, it.role, it.content, it.createdAt) })
     }
 
     override suspend fun sendMessage(conversationId: String?, message: String): AiChatResult = client.post(endpoint) {
