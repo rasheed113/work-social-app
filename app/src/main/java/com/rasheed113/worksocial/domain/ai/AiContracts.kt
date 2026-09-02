@@ -49,4 +49,5 @@ interface AiRepository {
     suspend fun loadHistory(conversationId: String? = null): AiConversationHistory?
     suspend fun sendMessage(conversationId: String?, message: String): AiChatResult
     suspend fun confirmAction(actionId: String): AiConfirmationResult
+    suspend fun cancelAction(actionId: String)
 }
