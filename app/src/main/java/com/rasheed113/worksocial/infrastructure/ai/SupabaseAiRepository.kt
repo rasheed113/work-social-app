@@ -3,6 +3,7 @@ package com.rasheed113.worksocial.infrastructure.ai
 import com.rasheed113.worksocial.BuildConfig
 import com.rasheed113.worksocial.domain.ai.AiChatResult
 import com.rasheed113.worksocial.domain.ai.AiConfirmationResult
+import com.rasheed113.worksocial.domain.ai.AiConversationHistory
 import com.rasheed113.worksocial.domain.ai.AiRepository
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.currentSessionOrNull
@@ -19,6 +20,12 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+@Serializable
+private data class HistoryRequest(
+    val action: String = "history",
+    val conversation_id: String? = null,
+)
 
 @Serializable
 private data class ChatRequest(
@@ -42,6 +49,12 @@ class SupabaseAiRepository(
     }
 
     private val endpoint = "${BuildConfig.SUPABASE_URL}/functions/v1/work-social-ai"
+
+    override suspend fun loadHistory(conversationId: String?): AiConversationHistory? = client.post(endpoint) {
+        header(HttpHeaders.Authorization, bearerToken())
+        contentType(ContentType.Application.Json)
+        setBody(HistoryRequest(conversation_id = conversationId))
+    }.body()
 
     override suspend fun sendMessage(conversationId: String?, message: String): AiChatResult = client.post(endpoint) {
         header(HttpHeaders.Authorization, bearerToken())
