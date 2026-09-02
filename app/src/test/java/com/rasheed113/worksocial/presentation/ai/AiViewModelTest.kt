@@ -7,19 +7,31 @@ import com.rasheed113.worksocial.domain.ai.AiCreatedEntry
 import com.rasheed113.worksocial.domain.ai.AiMessage
 import com.rasheed113.worksocial.domain.ai.AiPendingAction
 import com.rasheed113.worksocial.domain.ai.AiRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AiViewModelTest {
+    private val dispatcher = UnconfinedTestDispatcher()
+
+    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
+    @After fun tearDown() { Dispatchers.resetMain() }
+
     @Test
     fun restoresPersistedConversation() = runTest {
         val repository = FakeAiRepository(history = AiConversationHistory("conversation-1", listOf(AiMessage("m1", "assistant", "Welcome back", "2026-09-02T00:00:00Z"))))
         val viewModel = AiViewModel(repository)
         advanceUntilIdle()
-
         val state = viewModel.state.value as AiUiState.Ready
         assertEquals("conversation-1", state.conversationId)
         assertEquals("Welcome back", state.messages.single().content)
@@ -32,7 +44,6 @@ class AiViewModelTest {
         advanceUntilIdle()
         viewModel.send("Yaar kal presentation hai 😂")
         advanceUntilIdle()
-
         val state = viewModel.state.value as AiUiState.Ready
         assertEquals(2, state.messages.size)
         assertEquals("user", state.messages[0].role)
@@ -48,9 +59,9 @@ class AiViewModelTest {
         advanceUntilIdle()
         viewModel.send("Ek entry bana do")
         advanceUntilIdle()
-        viewModel.confirm(action)
+        val stateBefore = viewModel.state.value as AiUiState.Ready
+        viewModel.confirm(stateBefore.pendingAction!!)
         advanceUntilIdle()
-
         val state = viewModel.state.value as AiUiState.Ready
         assertTrue(repository.confirmed)
         assertEquals(null, state.pendingAction)
@@ -65,9 +76,9 @@ class AiViewModelTest {
         advanceUntilIdle()
         viewModel.send("Create a test entry")
         advanceUntilIdle()
-        viewModel.cancel(action)
+        val stateBefore = viewModel.state.value as AiUiState.Ready
+        viewModel.cancel(stateBefore.pendingAction!!)
         advanceUntilIdle()
-
         val state = viewModel.state.value as AiUiState.Ready
         assertTrue(repository.cancelled)
         assertEquals(null, state.pendingAction)
@@ -80,20 +91,9 @@ class AiViewModelTest {
     ) : AiRepository {
         var confirmed = false
         var cancelled = false
-
         override suspend fun loadHistory(conversationId: String?) = history
-
-        override suspend fun sendMessage(conversationId: String?, message: String) = AiChatResult(
-            conversationId = conversationId ?: "conversation-1",
-            message = if (pendingAction != null) "Please confirm the entry." else "Presentation context understood.",
-            pendingActions = listOfNotNull(pendingAction),
-        )
-
-        override suspend fun confirmAction(actionId: String) = run {
-            confirmed = true
-            AiConfirmationResult(true, AiCreatedEntry("entry-1", "todo", "Presentation", "Finalize presentation", false))
-        }
-
+        override suspend fun sendMessage(conversationId: String?, message: String) = AiChatResult(conversationId ?: "conversation-1", if (pendingAction != null) "Please confirm the entry." else "Presentation context understood.", listOfNotNull(pendingAction))
+        override suspend fun confirmAction(actionId: String) = run { confirmed = true; AiConfirmationResult(true, AiCreatedEntry("entry-1", "todo", "Presentation", "Finalize presentation", false)) }
         override suspend fun cancelAction(actionId: String) { cancelled = true }
     }
 }
