@@ -5,12 +5,14 @@ import com.rasheed113.worksocial.domain.ai.AiChatResult
 import com.rasheed113.worksocial.domain.ai.AiConfirmationResult
 import com.rasheed113.worksocial.domain.ai.AiRepository
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.currentSessionOrNull
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.post
 import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
@@ -41,21 +43,17 @@ class SupabaseAiRepository(
 
     private val endpoint = "${BuildConfig.SUPABASE_URL}/functions/v1/work-social-ai"
 
-    override suspend fun sendMessage(conversationId: String?, message: String): AiChatResult {
-        return client.post(endpoint) {
-            header(HttpHeaders.Authorization, bearerToken())
-            contentType(ContentType.Application.Json)
-            setBody(ChatRequest(message = message, conversation_id = conversationId))
-        }.body()
-    }
+    override suspend fun sendMessage(conversationId: String?, message: String): AiChatResult = client.post(endpoint) {
+        header(HttpHeaders.Authorization, bearerToken())
+        contentType(ContentType.Application.Json)
+        setBody(ChatRequest(message = message, conversation_id = conversationId))
+    }.body()
 
-    override suspend fun confirmAction(actionId: String): AiConfirmationResult {
-        return client.post(endpoint) {
-            header(HttpHeaders.Authorization, bearerToken())
-            contentType(ContentType.Application.Json)
-            setBody(ConfirmRequest(action_id = actionId))
-        }.body()
-    }
+    override suspend fun confirmAction(actionId: String): AiConfirmationResult = client.post(endpoint) {
+        header(HttpHeaders.Authorization, bearerToken())
+        contentType(ContentType.Application.Json)
+        setBody(ConfirmRequest(action_id = actionId))
+    }.body()
 
     private fun bearerToken(): String {
         val token = auth.currentSessionOrNull()?.accessToken
